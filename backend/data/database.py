@@ -14,18 +14,10 @@ class Database:
         self.connection = None
 
     def connect(self):
-        print(f"DATABASE_URL is: {self.database_url!r}")
         self.connection = psycopg2.connect(self.database_url)
 
     def ensure_connected(self):
         if self.connection is None or self.connection.closed:
-            self.connect()
-            return
-
-        try:
-            with self.connection.cursor() as cursor:
-                cursor.execute("SELECT 1")
-        except Exception:
             self.connect()
 
     def close(self):
