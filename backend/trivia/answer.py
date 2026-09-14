@@ -16,9 +16,14 @@ class TriviaResult(BaseModel):
     answer: str
 
 
+import time
+
 @router.post("/trivia/answer", response_model=TriviaResult)
 def check_answer(guess: TriviaGuess):
+    t0 = time.monotonic()
     correct_answer = pop_answer(guess.question_id)
+    t1 = time.monotonic()
+    print(f"DB CALL TOOK: {(t1 - t0) * 1000:.0f}ms", flush=True)
 
     if correct_answer is None:
         return {"error": "unknown or already-answered question_id"}
