@@ -1,0 +1,7 @@
+start backend: 
+    cd path\to\backend
+    uvicorn app:app --reload
+
+start frontend:
+    cd path\to\frontend
+    python -m http.server 5500

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Statline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Teko:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/home.css">
+<link rel="stylesheet" href="css/options.css">
+<link rel="stylesheet" href="css/trivia.css">
+<link rel="stylesheet" href="css/account.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+<div class="app">
+
+  <div class="topbar" id="topbar">
+    <button class="back-btn" id="back-btn" data-target="">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Back
+    </button>
+    <span class="wordmark-small">STATLINE</span>
+  </div>
+
+  <section class="screen active" id="screen-home">
+    <div class="hero-glow"></div>
+    <h1 class="wordmark">STATLINE<span class="seam"></span></h1>
+    <p class="tagline">Test your eye for the box score.</p>
+    <button class="play-btn" id="play-btn">
+      <svg width="14" height="16" viewBox="0 0 14 16" fill="none">
+        <path d="M13 8L0.5 15.5V0.5L13 8Z" fill="#1C1712"/>
+      </svg>
+      Play
+    </button>
+    <button class="account-link" id="account-link">Log In</button>
+  </section>
+
+  <section class="screen" id="screen-options">
+    <div class="options-layout">
+      <div class="options-main">
+        <h2 class="screen-heading">Choose a game</h2>
+        <p class="screen-subheading">More game modes are on the way.</p>
+
+        <button class="game-card" id="nba-trivia-card">
+          <div class="game-card-title">NBA Trivia</div>
+          <div class="game-card-desc">Guess the player behind their statline.</div>
+          <div class="game-card-status">Ready to play</div>
+        </button>
+
+        <button class="game-card disabled" id="player-comparisons-card">
+          <div class="game-card-title">Player Comparisons</div>
+          <div class="game-card-desc">Choose which player has more or less in a chosen stat.</div>
+          <div class="game-card-status">Coming soon</div>
+        </button>
+
+        <button class="game-card disabled" id="nba-trivia-duels-card">
+          <div class="game-card-title">NBA Trivia Duels</div>
+          <div class="game-card-desc">Play your friends in a live game.</div>
+          <div class="game-card-status">Coming soon</div>
+        </button>
+      </div>
+
+      <div class="leaderboard-panel">
+        <div class="leaderboard-header">
+          <h3 class="leaderboard-title">NBA Trivia Leaderboard</h3>
+          <div class="leaderboard-tabs">
+            <button class="leaderboard-tab active" id="tab-games-played" data-sort="games_played">Games Played</button>
+            <button class="leaderboard-tab" id="tab-average-score" data-sort="average_score">Avg Score</button>
+          </div>
+        </div>
+        <div class="leaderboard-list" id="leaderboard-list">
+          <p class="trivia-loading">Loading leaderboard…</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="screen-trivia">
+    <div class="trivia-panel" id="trivia-panel">
+      <p class="trivia-loading">Loading question…</p>
+    </div>
+  </section>
+
+  <section class="screen" id="screen-account">
+    <div class="account-panel" id="account-panel"></div>
+  </section>
+
+</div>
+
+<script type="module" src="js/main.js"></script>
+
+</body>
+</html>

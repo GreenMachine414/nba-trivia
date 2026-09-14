@@ -1,0 +1,18 @@
+@media (max-width: 800px) {
+  .options-layout { flex-direction: column; }
+  .options-main { flex: 1 1 auto; width: 100%; }
+  .leaderboard-panel { width: 100%; }
+}
+
+@media (max-width: 700px) {
+  .path-layout { flex-direction: column; }
+  .path-list { flex: 1 1 auto; width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .stat-grid { grid-template-columns: repeat(3, 1fr); row-gap: 16px; }
+  .choices-grid { grid-template-columns: 1fr; }
+  .tagline { font-size: 15px; }
+  .screen-heading { font-size: 32px; }
+  .play-btn { padding: 15px 34px; font-size: 16px; }
+}
