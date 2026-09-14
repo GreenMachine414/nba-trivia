@@ -124,8 +124,8 @@ async function renderSignedIn(username) {
     <button class="auth-submit-btn" id="logout-btn">Log Out</button>
   `;
 
-  document.getElementById('logout-btn').addEventListener('click', () => {
-    clearSession();
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await clearSession();
     renderAccountScreen();
   });
 
@@ -136,7 +136,7 @@ async function renderSignedIn(username) {
 
     if (!response.ok) {
       if (response.status === 401) {
-        clearSession();
+        await clearSession();
         renderAccountScreen();
       }
       return;

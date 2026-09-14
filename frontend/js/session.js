@@ -1,3 +1,7 @@
+const API_BASE = window.location.hostname === 'localhost'
+  ? 'http://127.0.0.1:8000'
+  : 'https://nba-trivia-zc1c.onrender.com';
+
 export function getToken() {
   return localStorage.getItem('statline_token');
 }
@@ -12,7 +16,20 @@ export function setSession(token, username) {
   updateAccountLink();
 }
 
-export function clearSession() {
+export async function clearSession() {
+  const token = getToken();
+
+  if (token) {
+    try {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+    } catch (err) {
+      console.error('Could not delete session server-side:', err);
+    }
+  }
+
   localStorage.removeItem('statline_token');
   localStorage.removeItem('statline_username');
   updateAccountLink();

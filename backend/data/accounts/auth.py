@@ -34,6 +34,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def create_session(user_id: int) -> str:
     token = secrets.token_urlsafe(32)
+    db.ensure_connected()
     cursor = db.connection.cursor()
     cursor.execute(
         "INSERT INTO sessions (token, user_id) VALUES (%s, %s)",
@@ -42,6 +43,14 @@ def create_session(user_id: int) -> str:
     db.connection.commit()
     cursor.close()
     return token
+
+
+def delete_session(token: str) -> None:
+    db.ensure_connected()
+    cursor = db.connection.cursor()
+    cursor.execute("DELETE FROM sessions WHERE token = %s", (token,))
+    db.connection.commit()
+    cursor.close()
 
 
 def get_current_user(authorization: str = Header(default="")) -> int:
@@ -106,3 +115,11 @@ def login(body: LoginRequest):
     token = create_session(user_id)
 
     return AuthResponse(token=token, username=body.username)
+
+
+@router.post("/auth/logout")
+def logout(authorization: str = Header(default="")):
+    if authorization.startswith("Bearer "):
+        token = authorization.removeprefix("Bearer ")
+        delete_session(token)
+    return {"status": "logged out"}
