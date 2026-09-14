@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import psycopg2
+from psycopg2.extras import execute_values
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent / ".env")
@@ -9,21 +10,12 @@ load_dotenv(Path(__file__).parent / ".env")
 
 class Database:
     def __init__(self):
-        self.host = os.getenv("DB_HOST")
-        self.database = os.getenv("DB_NAME")
-        self.user = os.getenv("DB_USER")
-        self.password = os.getenv("DB_PASSWORD")
-        self.port = os.getenv("DB_PORT")
+        self.database_url = os.getenv("DATABASE_URL")
         self.connection = None
 
     def connect(self):
-        self.connection = psycopg2.connect(
-            host=self.host,
-            database=self.database,
-            user=self.user,
-            password=self.password,
-            port=self.port
-        )
+        print(f"DATABASE_URL is: {self.database_url!r}")
+        self.connection = psycopg2.connect(self.database_url)
 
     def ensure_connected(self):
         if self.connection is None or self.connection.closed:
@@ -42,21 +34,16 @@ class Database:
 
     def load_data(self, table, data):
         cursor = self.connection.cursor()
-
         try:
+            if not data:
+                return
             columns = list(data[0].model_dump().keys())
-
             column_names = ", ".join(columns)
-            placeholders = ", ".join(["%s"] * len(columns))
 
-            sql = f"""
-                INSERT INTO {table} ({column_names})
-                VALUES ({placeholders})
-            """
+            values = [tuple(item.model_dump().values()) for item in data]
 
-            for item in data:
-                values = list(item.model_dump().values())
-                cursor.execute(sql, values)
+            sql = f"INSERT INTO {table} ({column_names}) VALUES %s"
+            execute_values(cursor, sql, values)
 
             self.connection.commit()
         except Exception:
