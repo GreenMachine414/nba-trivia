@@ -38,31 +38,30 @@ def guess_coaching_staff():
     cursor = db.connection.cursor()
 
     cursor.execute("""
-        SELECT team_id, season
-        FROM coaches
-        GROUP BY team_id, season
-        HAVING COUNT(*) >= 2
-        ORDER BY RANDOM()
-        LIMIT 1
+        SELECT c.team_id, c.season, c.coach_name, c.coach_type, t.abbreviation
+        FROM coaches c
+        JOIN teams t ON t.team_id = c.team_id
+        WHERE (c.team_id, c.season) IN (
+            SELECT team_id, season FROM coaches GROUP BY team_id, season HAVING COUNT(*) >= 2
+        )
     """)
-    row = cursor.fetchone()
-    if row is None:
+    all_rows = cursor.fetchall()
+
+    if not all_rows:
         cursor.close()
         return {"error": "no eligible coaching staffs found"}
 
-    team_id, season = row
+    grouped: dict[tuple, list[tuple]] = {}
+    team_abbrev_for_group: dict[tuple, str] = {}
+    for team_id, season, coach_name, coach_type, abbreviation in all_rows:
+        key = (team_id, season)
+        grouped.setdefault(key, []).append((coach_name, coach_type))
+        team_abbrev_for_group[key] = abbreviation
 
-    cursor.execute("""
-        SELECT coach_name, coach_type
-        FROM coaches
-        WHERE team_id = %s AND season = %s
-        ORDER BY coach_type
-    """, (team_id, season))
-    staff_rows = cursor.fetchall()
-
-    cursor.execute("SELECT abbreviation FROM teams WHERE team_id = %s", (team_id,))
-    team_row = cursor.fetchone()
-    correct_team = team_row[0] if team_row else None
+    chosen_key = random.choice(list(grouped.keys()))
+    team_id, season = chosen_key
+    staff_rows = grouped[chosen_key]
+    correct_team = team_abbrev_for_group[chosen_key]
 
     cursor.execute("""
         SELECT abbreviation FROM teams
@@ -72,9 +71,6 @@ def guess_coaching_staff():
     """, (team_id,))
     wrong_teams = [r[0] for r in cursor.fetchall()]
     cursor.close()
-
-    if correct_team is None or not staff_rows:
-        return {"error": "no coaching staff found for this team-season"}
 
     staff = [CoachEntry(coach_name=name, coach_type=ctype) for name, ctype in staff_rows]
 
