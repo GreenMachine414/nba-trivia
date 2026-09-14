@@ -123,23 +123,22 @@ def guess_missing_stop():
 
     player_id, player_name = row
     path = fetch_career_path(cursor, player_id)
-    cursor.close()
 
     if not path:
+        cursor.close()
         return {"error": "no career path found"}
 
     hidden_index = random.randint(0, len(path) - 1)
     correct_team = path[hidden_index].team
 
-    cursor2 = db.connection.cursor()
-    cursor2.execute("""
+    cursor.execute("""
         SELECT abbreviation FROM teams
         WHERE abbreviation != %s
         ORDER BY RANDOM()
         LIMIT 3
     """, (correct_team,))
-    wrong_teams = [r[0] for r in cursor2.fetchall()]
-    cursor2.close()
+    wrong_teams = [r[0] for r in cursor.fetchall()]
+    cursor.close()
 
     visible_path = [
         PathStop(team="???", start_season=stop.start_season, end_season=stop.end_season)
@@ -202,6 +201,5 @@ def guess_team_count():
         question_type=QUESTION_TYPE,
         question=question,
         player_name=player_name,
-        path=path,
         choices=choices,
     )

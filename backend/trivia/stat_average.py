@@ -253,13 +253,10 @@ def guess_the_team():
     cursor = db.connection.cursor()
 
     cursor.execute("""
-        SELECT p.player_name, s.season,
-               s.games_played, s.pts, s.reb, s.ast, s.stl, s.blk,
-               t.abbreviation
+        SELECT s.player_id, p.player_name, s.season, s.season_start_year,
+               s.games_played, s.pts, s.reb, s.ast, s.stl, s.blk
         FROM season_stats s
         JOIN players p ON p.player_id = s.player_id
-        JOIN rosters r ON r.player_id = s.player_id AND r.season_start_year = s.season_start_year
-        JOIN teams t ON t.team_id = r.team_id
         ORDER BY RANDOM()
         LIMIT 1
     """)
@@ -267,9 +264,24 @@ def guess_the_team():
 
     if row is None:
         cursor.close()
-        return {"error": "no eligible player-season-team rows found"}
+        return {"error": "no eligible player-season rows found"}
 
-    player_name, season, games, points, rebounds, assists, steals, blocks, correct_team = row
+    player_id, player_name, season, season_start_year, games, points, rebounds, assists, steals, blocks = row
+
+    cursor.execute("""
+        SELECT t.abbreviation
+        FROM rosters r
+        JOIN teams t ON t.team_id = r.team_id
+        WHERE r.player_id = %s AND r.season_start_year = %s
+        LIMIT 1
+    """, (player_id, season_start_year))
+    team_row = cursor.fetchone()
+
+    if team_row is None:
+        cursor.close()
+        return {"error": "no team found for this player-season"}
+
+    correct_team = team_row[0]
 
     cursor.execute("""
         SELECT abbreviation FROM teams
