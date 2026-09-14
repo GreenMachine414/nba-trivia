@@ -24,30 +24,34 @@ CREATE TABLE IF NOT EXISTS players (
 );
 
 CREATE TABLE IF NOT EXISTS season_stats (
-    player_id         BIGINT REFERENCES players(player_id),
-    team_id           BIGINT REFERENCES teams(team_id),
-    season            VARCHAR(10),
-    age               FLOAT,
-    games_played      INT,
-    minutes           FLOAT,
-    fgm               FLOAT,
-    fga               FLOAT,
-    fg_pct            FLOAT,
-    fg3m              FLOAT,
-    fg3a              FLOAT,
-    fg3_pct           FLOAT,
-    ftm               FLOAT,
-    fta               FLOAT,
-    ft_pct            FLOAT,
-    pts               FLOAT,
-    oreb              FLOAT,
-    dreb              FLOAT,
-    reb               FLOAT,
-    ast               FLOAT,
-    tov               FLOAT,
-    stl               FLOAT,
-    blk               FLOAT
+    player_id          BIGINT REFERENCES players(player_id),
+    team_id            BIGINT REFERENCES teams(team_id),
+    season             VARCHAR(10),
+    season_start_year  INTEGER,
+    age                FLOAT,
+    games_played       INT,
+    minutes            FLOAT,
+    fgm                FLOAT,
+    fga                FLOAT,
+    fg_pct             FLOAT,
+    fg3m               FLOAT,
+    fg3a               FLOAT,
+    fg3_pct            FLOAT,
+    ftm                FLOAT,
+    fta                FLOAT,
+    ft_pct             FLOAT,
+    pts                FLOAT,
+    oreb               FLOAT,
+    dreb               FLOAT,
+    reb                FLOAT,
+    ast                FLOAT,
+    tov                FLOAT,
+    stl                FLOAT,
+    blk                FLOAT
 );
+
+CREATE INDEX IF NOT EXISTS idx_season_stats_start_year ON season_stats (season_start_year);
+CREATE INDEX IF NOT EXISTS idx_season_stats_player_id ON season_stats (player_id);
 
 CREATE TABLE IF NOT EXISTS draft_history (
     player_id         BIGINT REFERENCES players(player_id),
@@ -61,15 +65,19 @@ CREATE TABLE IF NOT EXISTS draft_history (
 );
 
 CREATE TABLE IF NOT EXISTS rosters (
-    team_id           BIGINT REFERENCES teams(team_id),
-    season            VARCHAR(10),
-    player_id         BIGINT REFERENCES players(player_id),
-    jersey_number     VARCHAR(10),
-    position          VARCHAR(10),
-    height            VARCHAR(10),
-    weight            VARCHAR(10),
-    age               FLOAT
+    team_id            BIGINT REFERENCES teams(team_id),
+    season             VARCHAR(10),
+    season_start_year  INTEGER,
+    player_id          BIGINT REFERENCES players(player_id),
+    jersey_number      VARCHAR(10),
+    position           VARCHAR(10),
+    height             VARCHAR(10),
+    weight             VARCHAR(10),
+    age                FLOAT
 );
+
+CREATE INDEX IF NOT EXISTS idx_rosters_start_year ON rosters (season_start_year);
+CREATE INDEX IF NOT EXISTS idx_rosters_player_id ON rosters (player_id);
 
 CREATE TABLE IF NOT EXISTS coaches (
     team_id           BIGINT REFERENCES teams(team_id),

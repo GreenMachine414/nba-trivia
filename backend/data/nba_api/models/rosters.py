@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 class Roster(BaseModel):
     team_id: int = Field(alias="TeamID")
     season: str = Field(alias="SEASON")
+    season_start_year: int | None = None
     player_id: int = Field(alias="PLAYER_ID")
     jersey_number: str | None = Field(default=None, alias="NUM")
     position: str | None = Field(default=None, alias="POSITION")

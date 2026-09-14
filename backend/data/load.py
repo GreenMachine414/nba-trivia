@@ -70,6 +70,9 @@ def load_nba_data():
             time.sleep(0.3)
             continue
 
+        for stat in stats:
+            stat.season_start_year = int(stat.season[:4])
+
         season_stats.extend(stats)
         print(f"Loaded season stats for player {player.player_id}")
         time.sleep(0.3)
@@ -86,7 +89,12 @@ def load_nba_data():
     for season in generate_seasons():
         for team_id in valid_team_ids:
             data = fetch_team_roster_data(team_id, season)
-            rosters.extend(get_roster(data))
+
+            season_rosters = get_roster(data)
+            for r in season_rosters:
+                r.season_start_year = int(r.season)
+            rosters.extend(season_rosters)
+
             coaches.extend(get_coaches(data))
             print(f"Loaded roster for team {team_id} in {season}")
             time.sleep(0.3)
