@@ -18,6 +18,7 @@ class Database:
 
     def ensure_connected(self):
         if self.connection is None or self.connection.closed:
+            print("RECONNECTING", flush=True)
             self.connect()
 
     def close(self):
