@@ -26,3 +26,17 @@ app.add_middleware(
 
 app.include_router(trivia.router)
 app.include_router(auth.router)
+
+import time
+import logging
+
+logger = logging.getLogger("timing")
+logging.basicConfig(level=logging.INFO)
+
+@app.middleware("http")
+async def log_request_time(request, call_next):
+    start = time.monotonic()
+    response = await call_next(request)
+    elapsed = (time.monotonic() - start) * 1000
+    logger.info(f"{request.method} {request.url.path} -> {elapsed:.0f}ms")
+    return response
