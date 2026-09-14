@@ -19,7 +19,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://yourdomain.com"],  # replace with your real frontend URL once deployed
+    allow_origins=["https://zippy-duckanoo-92b7f3.netlify.app/"],  # replace with your real frontend URL once deployed
     allow_methods=["*"],
     allow_headers=["*"],
 )
