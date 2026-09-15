@@ -1,6 +1,6 @@
 const API_BASE = window.location.hostname === 'localhost'
   ? 'http://127.0.0.1:8000'
-  : 'https://nba-trivia-zc1c.onrender.com';
+  : 'https://nba-trivia-production.up.railway.app';
 
 export function getToken() {
   return localStorage.getItem('statline_token');
