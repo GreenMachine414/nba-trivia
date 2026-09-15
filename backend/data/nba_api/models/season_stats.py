@@ -8,7 +8,6 @@ class SeasonStats(BaseModel):
     player_id: int = Field(alias="PLAYER_ID")
     team_id: int = Field(alias="TEAM_ID")
     season: str = Field(alias="SEASON_ID")
-    season_start_year: int | None = None
     age: float | None = Field(default=None, alias="PLAYER_AGE")
     games_played: int | None = Field(default=None, alias="GP")
     minutes: float | None = Field(default=None, alias="MIN")

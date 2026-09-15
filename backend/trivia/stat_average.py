@@ -253,7 +253,7 @@ def guess_the_team():
     cursor = db.connection.cursor()
 
     cursor.execute("""
-        SELECT s.player_id, p.player_name, s.season, s.season_start_year,
+        SELECT s.player_id, p.player_name, s.season,
                s.games_played, s.pts, s.reb, s.ast, s.stl, s.blk
         FROM season_stats s
         JOIN players p ON p.player_id = s.player_id
@@ -266,15 +266,15 @@ def guess_the_team():
         cursor.close()
         return {"error": "no eligible player-season rows found"}
 
-    player_id, player_name, season, season_start_year, games, points, rebounds, assists, steals, blocks = row
+    player_id, player_name, season, games, points, rebounds, assists, steals, blocks = row
 
     cursor.execute("""
         SELECT t.abbreviation
         FROM rosters r
         JOIN teams t ON t.team_id = r.team_id
-        WHERE r.player_id = %s AND r.season_start_year = %s
+        WHERE r.player_id = %s AND r.season = %s
         LIMIT 1
-    """, (player_id, season_start_year))
+    """, (player_id, season))
     team_row = cursor.fetchone()
 
     if team_row is None:

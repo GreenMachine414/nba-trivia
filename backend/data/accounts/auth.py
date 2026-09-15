@@ -61,7 +61,10 @@ def get_current_user(authorization: str = Header(default="")) -> int:
 
     db.ensure_connected()
     cursor = db.connection.cursor()
-    cursor.execute("SELECT user_id FROM sessions WHERE token = %s", (token,))
+    cursor.execute("""
+        SELECT user_id FROM sessions
+        WHERE token = %s AND created_at > NOW() - INTERVAL '30 days'
+    """, (token,))
     row = cursor.fetchone()
     cursor.close()
 
