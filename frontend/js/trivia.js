@@ -47,7 +47,6 @@ let correctCount = 0;
 let timerInterval = null;
 let questionLocked = false;
 let gameInProgress = false;
-let preloadedQuestions = [];
 
 export function isGameInProgress() {
   return gameInProgress;
@@ -69,63 +68,41 @@ function shuffle(array) {
     .map(({ item }) => item);
 }
 
-function pickRandomEndpoints(count) {
-  const picks = [];
-  for (let i = 0; i < count; i++) {
-    picks.push(questionEndpoints[Math.floor(Math.random() * questionEndpoints.length)]);
-  }
-  return picks;
-}
-
-async function fetchQuestion(endpoint) {
-  const response = await fetch(`${API_BASE}${endpoint}`);
-  if (!response.ok) {
-    throw new Error(`Request failed (${response.status})`);
-  }
-  const data = await response.json();
-  if (data.error) {
-    throw new Error(data.error);
-  }
-  return data;
-}
-
-export async function startGame() {
+export function startGame() {
   questionNumber = 0;
   questionsAnswered = 0;
   correctCount = 0;
   gameInProgress = true;
-  preloadedQuestions = [];
-
   showScreen('trivia');
-  triviaPanel.innerHTML = '<p class="trivia-loading">Loading questions…</p>';
-
-  try {
-    const endpoints = pickRandomEndpoints(TOTAL_QUESTIONS);
-    const results = await Promise.allSettled(endpoints.map(fetchQuestion));
-
-    // Some question types can legitimately return an error (e.g. "no
-    // eligible players found") - drop those and keep only real questions.
-    preloadedQuestions = results
-      .filter(r => r.status === 'fulfilled')
-      .map(r => r.value);
-
-    if (preloadedQuestions.length === 0) {
-      triviaPanel.innerHTML = '<p class="trivia-loading">Could not load any questions. Please try again.</p>';
-      return;
-    }
-
-    askNextQuestion();
-
-  } catch (err) {
-    triviaPanel.innerHTML =
-      `<p class="trivia-loading">Couldn't reach the backend: ${err.message}</p>`;
-  }
+  triviaPanel.innerHTML = '<p class="trivia-loading">Loading question…</p>';
+  askNextQuestion();
 }
 
 function askNextQuestion() {
   questionNumber += 1;
-  const data = preloadedQuestions[questionNumber - 1];
-  renderQuestion(data);
+  loadQuestion();
+}
+
+// No loading flash here on purpose - the previous question's feedback
+// stays fully visible until the new question is ready to swap in.
+async function loadQuestion() {
+  const endpoint = questionEndpoints[Math.floor(Math.random() * questionEndpoints.length)];
+
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`);
+    if (!response.ok) {
+      throw new Error(`Request failed (${response.status})`);
+    }
+    const data = await response.json();
+    if (data.error) {
+      triviaPanel.innerHTML = `<p class="trivia-loading">${data.error}</p>`;
+      return;
+    }
+    renderQuestion(data);
+  } catch (err) {
+    triviaPanel.innerHTML =
+      `<p class="trivia-loading">Couldn't reach the backend: ${err.message}</p>`;
+  }
 }
 
 function renderQuestion(data) {
@@ -138,7 +115,7 @@ function renderQuestion(data) {
         <span class="question-type-dot" style="background:${dotColor}"></span>
         <span class="question-type-label">${data.question_type}</span>
       </div>
-      <span class="progress-label">Question ${questionNumber} of ${preloadedQuestions.length}</span>
+      <span class="progress-label">Question ${questionNumber} of ${TOTAL_QUESTIONS}</span>
     </div>
     <div class="timer-row">
       <div class="timer-track"><div class="timer-fill" id="timer-fill"></div></div>
@@ -324,7 +301,7 @@ async function submitGuess(questionId, guess, timedOut = false) {
         : `Not quite — it was ${result.answer}.`;
     feedback.classList.add(result.correct ? 'correct' : 'incorrect');
 
-    const isLastQuestion = questionNumber >= preloadedQuestions.length;
+    const isLastQuestion = questionNumber >= TOTAL_QUESTIONS;
 
     const advanceBtn = document.createElement('button');
     advanceBtn.className = 'next-btn';
@@ -343,14 +320,14 @@ function showResults() {
 
   triviaPanel.innerHTML = `
     <h2 class="screen-heading">Results</h2>
-    <p class="results-score">${correctCount} / ${preloadedQuestions.length}</p>
-    <p class="trivia-desc-static">You got ${correctCount} out of ${preloadedQuestions.length} correct.</p>
+    <p class="results-score">${correctCount} / ${TOTAL_QUESTIONS}</p>
+    <p class="trivia-desc-static">You got ${correctCount} out of ${TOTAL_QUESTIONS} correct.</p>
     <button class="next-btn" id="play-again-btn">Play Again</button>
   `;
 
   document.getElementById('play-again-btn').addEventListener('click', startGame);
 
-  recordGameResult(preloadedQuestions.length);
+  recordGameResult();
 }
 
 export async function recordGameResult(totalQuestions = TOTAL_QUESTIONS) {
