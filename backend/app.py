@@ -35,7 +35,7 @@ def ping():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://zippy-duckanoo-92b7f3.netlify.app"],
+    allow_origins=["https://statline-trivia.netlify.app"],
     allow_methods=["*"],
     allow_headers=["*"],
     max_age=3600
