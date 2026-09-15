@@ -28,6 +28,11 @@ async def log_request_time(request, call_next):
     return response
 
 
+@app.get("/ping")
+def ping():
+    return {"status": "ok"}
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://zippy-duckanoo-92b7f3.netlify.app"],
