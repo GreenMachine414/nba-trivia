@@ -136,7 +136,7 @@ def guess_missing_stat():
                s.games_played, s.pts, s.reb, s.ast, s.stl, s.blk
         FROM season_stats s
         JOIN players p ON p.player_id = s.player_id
-        WHERE s.games_played >= 20 AND 
+        WHERE s.games_played >= 20
         ORDER BY RANDOM()
         LIMIT 1
     """)
