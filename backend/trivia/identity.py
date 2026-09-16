@@ -151,7 +151,6 @@ def guess_career_jerseys():
         JOIN players ON players.player_id = rosters.player_id
         WHERE rosters.jersey_number IS NOT NULL
         GROUP BY rosters.player_id, players.player_name
-        HAVING COUNT(DISTINCT rosters.jersey_number) >= 2
         ORDER BY RANDOM()
         LIMIT 1
     """)
@@ -166,11 +165,9 @@ def guess_career_jerseys():
         SELECT DISTINCT jersey_number FROM rosters
         WHERE player_id = %s AND jersey_number IS NOT NULL
     """, (player_id,))
-    real_numbers = sorted({
-        n for raw in cursor.fetchall() for n in parse_jersey_numbers(raw[0])
-    })
+    real_numbers = sorted({n for (raw,) in cursor.fetchall() for n in parse_jersey_numbers(raw)})
 
-    if len(real_numbers) < 2:
+    if not real_numbers:
         cursor.close()
         return {"error": "no eligible players found"}
 
@@ -184,29 +181,21 @@ def guess_career_jerseys():
         ORDER BY RANDOM()
         LIMIT 200
     """, (player_id,))
-    other_rows = cursor.fetchall()
+    other_by_player: dict[int, set[int]] = {}
+    for pid, jersey in cursor.fetchall():
+        other_by_player.setdefault(pid, set()).update(parse_jersey_numbers(jersey))
     cursor.close()
 
-    other_by_player: dict[int, set[int]] = {}
-    for pid, jersey in other_rows:
-        for n in parse_jersey_numbers(jersey):
-            other_by_player.setdefault(pid, set()).add(n)
-
-    wrong_options = set()
-    for numbers in other_by_player.values():
-        if not numbers:
-            continue
-        variant_str = ", ".join(str(n) for n in sorted(numbers))
-        if variant_str and variant_str != correct_answer:
-            wrong_options.add(variant_str)
-        if len(wrong_options) >= 3:
-            break
+    wrong_options = {
+        ", ".join(str(n) for n in sorted(numbers))
+        for numbers in other_by_player.values() if numbers
+    } - {correct_answer}
 
     # Fallback in the rare case fewer than 3 distinct decoys were found
     while len(wrong_options) < 3:
         filler = ", ".join(str(n) for n in sorted({random.randint(0, 55) for _ in range(len(real_numbers))}))
-        if filler != correct_answer:
-            wrong_options.add(filler)
+        wrong_options.add(filler)
+    wrong_options.discard(correct_answer)
 
     question = f"Which jersey number(s) did {player_name} wear throughout his career?"
 
