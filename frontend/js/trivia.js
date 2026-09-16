@@ -19,7 +19,6 @@ const questionEndpoints = [
   '/trivia/career_path',
   '/trivia/missing_stat',
   '/trivia/season_guess',
-  '/trivia/team_guess',
   '/trivia/missing_stop',
   '/trivia/team_count',
   '/trivia/draft_player',

@@ -1,7 +1,7 @@
 start backend: 
     cd path\to\backend
     uvicorn app:app --reload
-    -render
+    -railway
 
 start frontend:
     cd path\to\frontend

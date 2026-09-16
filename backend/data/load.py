@@ -39,18 +39,13 @@ def remove_unknown_players(data: list, valid_player_ids: set, player_id_field: s
     return [entry for entry in data if getattr(entry, player_id_field) in valid_player_ids]
 
 
-def qualifying_players() -> set[int]:
-    cursor = db.connection.cursor()
-    cursor.execute("""
-        SELECT players.player_id, players.player_name
-        FROM players
-        INNER JOIN season_stats ON players.player_id = season_stats.player_id
-        GROUP BY players.player_id, players.player_name
-        HAVING SUM(games_played) >= 100 AND SUM(pts) / SUM(games_played) > 5
-    """)
-    player_ids = {row[0] for row in cursor.fetchall()}
-    cursor.close()
-    return player_ids
+def qualifying_season_stats(season_stats: list) -> list:
+    """Keeps only individual season rows that clear the bar: 20+ games
+    played and 5+ PPG for that specific season."""
+    return [
+        s for s in season_stats
+        if s.games_played and s.games_played >= 20 and (s.pts or 0) / s.games_played >= 5
+    ]
 
 
 def load_teams_and_players():
@@ -65,7 +60,10 @@ def load_teams_and_players():
     return teams, players
 
 
-def load_season_stats(players, valid_team_ids):
+def load_season_stats(players, valid_team_ids) -> set[int]:
+    """Loads season_stats, keeping only rows that clear the qualifying
+    bar. Returns the set of player_ids with at least one surviving row,
+    so rosters/draft_history/awards can be scoped to only those players."""
     season_stats = []
     skipped_players = []
 
@@ -86,10 +84,14 @@ def load_season_stats(players, valid_team_ids):
         print(f"Skipped {len(skipped_players)} players due to errors: {skipped_players}")
 
     season_stats = [s for s in season_stats if s.team_id in valid_team_ids]
+    season_stats = qualifying_season_stats(season_stats)
+
     db.load_data("season_stats", season_stats)
 
+    return {s.player_id for s in season_stats}
 
-def load_rosters_and_coaches(valid_team_ids, valid_player_ids):
+
+def load_rosters_and_coaches(valid_team_ids, qualifying_player_ids):
     rosters = []
     coaches = []
 
@@ -113,12 +115,12 @@ def load_rosters_and_coaches(valid_team_ids, valid_player_ids):
             print(f"Loaded roster for team {team_id} in {season}")
             time.sleep(0.3)
 
-    rosters = remove_unknown_players(rosters, valid_player_ids, "player_id")
+    rosters = remove_unknown_players(rosters, qualifying_player_ids, "player_id")
     db.load_data("rosters", rosters)
     db.load_data("coaches", coaches)
 
 
-def load_draft_history(valid_team_ids, valid_player_ids):
+def load_draft_history(valid_team_ids, qualifying_player_ids):
     draft_history = get_draft_history()
 
     for entry in draft_history:
@@ -126,14 +128,12 @@ def load_draft_history(valid_team_ids, valid_player_ids):
             entry.team_id = None
         entry.season = year_to_season(int(entry.season))
 
-    draft_history = remove_unknown_players(draft_history, valid_player_ids, "player_id")
+    draft_history = remove_unknown_players(draft_history, qualifying_player_ids, "player_id")
     db.load_data("draft_history", draft_history)
     print(f"Loaded {len(draft_history)} draft history entries.")
 
 
-def load_awards():
-    qualifying_player_ids = qualifying_players()
-
+def load_awards(qualifying_player_ids):
     awards = []
     for player_id in qualifying_player_ids:
         awards.extend(get_player_awards(player_id))
@@ -146,12 +146,12 @@ def load_awards():
 def load_nba_data():
     teams, players = load_teams_and_players()
     valid_team_ids = {t.team_id for t in teams}
-    valid_player_ids = {p.player_id for p in players}
 
-    load_season_stats(players, valid_team_ids)
-    load_rosters_and_coaches(valid_team_ids, valid_player_ids)
-    load_draft_history(valid_team_ids, valid_player_ids)
-    load_awards()
+    qualifying_player_ids = load_season_stats(players, valid_team_ids)
+
+    load_rosters_and_coaches(valid_team_ids, qualifying_player_ids)
+    load_draft_history(valid_team_ids, qualifying_player_ids)
+    load_awards(qualifying_player_ids)
 
 
 def main():
