@@ -15,24 +15,9 @@ const questionTypeColors = {
 };
 
 const questionEndpoints = [
-  '/trivia/season_average',
-  '/trivia/career_path',
-  '/trivia/missing_stat',
-  '/trivia/season_guess',
-  '/trivia/team_guess',
-  '/trivia/missing_stop',
-  '/trivia/team_count',
-  '/trivia/draft_player',
-  '/trivia/overall_pick',
-  '/trivia/draft_organization',
-  '/trivia/player_from_organization',
-  '/trivia/jersey_player',
-  '/trivia/jersey_number',
+
   '/trivia/career_jerseys',
-  '/trivia/coaching_staff',
-  '/trivia/head_coach',
-  '/trivia/award_winner',
-  '/trivia/career_resume',
+
 ];
 
 const TOTAL_QUESTIONS = 10;
