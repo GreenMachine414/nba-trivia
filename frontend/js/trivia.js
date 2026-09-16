@@ -264,14 +264,6 @@ async function submitGuess(questionId, guess, timedOut = false) {
   const buttons = document.querySelectorAll('.choice-btn');
   buttons.forEach(btn => { btn.disabled = true; });
 
-  // Instant visual feedback the moment the player clicks - happens
-  // before any network response, so the click always feels immediate.
-  const clickedBtn = [...buttons].find(b => b.textContent === guess);
-  if (clickedBtn) clickedBtn.classList.add('selected-pending');
-
-  const feedback = document.getElementById('trivia-feedback');
-  feedback.textContent = 'Checking...';
-
   try {
     const response = await fetch(`${API_BASE}/trivia/answer`, {
       method: 'POST',
@@ -285,10 +277,8 @@ async function submitGuess(questionId, guess, timedOut = false) {
 
     const result = await response.json();
 
-    if (clickedBtn) clickedBtn.classList.remove('selected-pending');
-
     if (result.error) {
-      feedback.textContent = result.error;
+      document.getElementById('trivia-feedback').textContent = result.error;
       return;
     }
 
@@ -303,6 +293,7 @@ async function submitGuess(questionId, guess, timedOut = false) {
       }
     });
 
+    const feedback = document.getElementById('trivia-feedback');
     feedback.textContent = result.correct
       ? 'Correct!'
       : timedOut
@@ -319,8 +310,8 @@ async function submitGuess(questionId, guess, timedOut = false) {
     triviaPanel.appendChild(advanceBtn);
 
   } catch (err) {
-    if (clickedBtn) clickedBtn.classList.remove('selected-pending');
-    feedback.textContent = `Couldn't reach the backend: ${err.message}`;
+    document.getElementById('trivia-feedback').textContent =
+      `Couldn't reach the backend: ${err.message}`;
   }
 }
 
