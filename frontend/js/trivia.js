@@ -283,6 +283,7 @@ async function submitGuess(questionId, guess, timedOut = false) {
 
     if (result.correct) correctCount += 1;
     questionsAnswered += 1;
+    console.log('questionsAnswered is now:', questionsAnswered);
 
     buttons.forEach(btn => {
       if (btn.textContent === result.answer) {

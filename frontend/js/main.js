@@ -16,6 +16,7 @@ document.getElementById('account-link').addEventListener('click', () => {
 
 backBtn.addEventListener('click', (e) => {
   stopTimer();
+  console.log('Back clicked - gameInProgress:', isGameInProgress(), 'questionsAnswered:', getQuestionsAnswered());
 
   if (screens.trivia.classList.contains('active') && isGameInProgress() && getQuestionsAnswered() > 0) {
     recordGameResult(getQuestionsAnswered());
