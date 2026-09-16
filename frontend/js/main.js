@@ -14,13 +14,15 @@ document.getElementById('account-link').addEventListener('click', () => {
   renderAccountScreen();
 });
 
-backBtn.addEventListener('click', (e) => {
-  stopTimer();
-  console.log('Back clicked - gameInProgress:', isGameInProgress(), 'questionsAnswered:', getQuestionsAnswered());
+backBtn.addEventListener('click', async (e) => {
+  clearGameTimer();   // 1. stop the countdown - doesn't touch gameInProgress at all
 
   if (screens.trivia.classList.contains('active') && isGameInProgress() && getQuestionsAnswered() > 0) {
-    recordGameResult(getQuestionsAnswered());
+    // 2. check gameInProgress WHILE it's still accurately true, and record if warranted
+    await recordGameResult(getQuestionsAnswered());
   }
+
+  endGame();   // 3. NOW it's safe to set gameInProgress = false, since nothing needs to read it anymore
 
   const target = e.currentTarget.dataset.target;
   if (target) showScreen(target);

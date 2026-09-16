@@ -19,6 +19,7 @@ const questionEndpoints = [
   '/trivia/career_path',
   '/trivia/missing_stat',
   '/trivia/season_guess',
+  '/trivia/team_guess',
   '/trivia/missing_stop',
   '/trivia/team_count',
   '/trivia/draft_player',
@@ -55,8 +56,11 @@ export function getQuestionsAnswered() {
   return questionsAnswered;
 }
 
-export function stopTimer() {
+export function clearGameTimer() {
   clearInterval(timerInterval);
+}
+
+export function endGame() {
   gameInProgress = false;
 }
 
@@ -82,8 +86,6 @@ function askNextQuestion() {
   loadQuestion();
 }
 
-// No loading flash here on purpose - the previous question's feedback
-// stays fully visible until the new question is ready to swap in.
 async function loadQuestion() {
   const endpoint = questionEndpoints[Math.floor(Math.random() * questionEndpoints.length)];
 
@@ -283,7 +285,6 @@ async function submitGuess(questionId, guess, timedOut = false) {
 
     if (result.correct) correctCount += 1;
     questionsAnswered += 1;
-    console.log('questionsAnswered is now:', questionsAnswered);
 
     buttons.forEach(btn => {
       if (btn.textContent === result.answer) {
