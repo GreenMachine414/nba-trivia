@@ -2,7 +2,7 @@ import { showScreen, backBtn, screens } from './screens.js';
 import { updateAccountLink } from './session.js';
 import { renderAccountScreen } from './auth.js';
 import { initLeaderboardTabs } from './leaderboard.js';
-import { startGame, isGameInProgress, getQuestionsAnswered, stopTimer, recordGameResult } from './trivia.js';
+import { startGame, isGameInProgress, getQuestionsAnswered, clearGameTimer, endGame, recordGameResult } from './trivia.js';
 
 initLeaderboardTabs();
 
@@ -15,14 +15,13 @@ document.getElementById('account-link').addEventListener('click', () => {
 });
 
 backBtn.addEventListener('click', async (e) => {
-  clearGameTimer();   // 1. stop the countdown - doesn't touch gameInProgress at all
+  clearGameTimer();
 
   if (screens.trivia.classList.contains('active') && isGameInProgress() && getQuestionsAnswered() > 0) {
-    // 2. check gameInProgress WHILE it's still accurately true, and record if warranted
     await recordGameResult(getQuestionsAnswered());
   }
 
-  endGame();   // 3. NOW it's safe to set gameInProgress = false, since nothing needs to read it anymore
+  endGame();
 
   const target = e.currentTarget.dataset.target;
   if (target) showScreen(target);
