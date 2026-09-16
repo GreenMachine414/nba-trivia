@@ -185,24 +185,35 @@ def guess_the_season():
     cursor = db.connection.cursor()
 
     cursor.execute("""
-        SELECT p.player_name, s.season, s.games_played, s.pts, s.reb, s.ast, s.stl, s.blk
-        FROM season_stats s
-        JOIN players p ON p.player_id = s.player_id
-        WHERE s.player_id IN (
-            SELECT player_id FROM season_stats
-            GROUP BY player_id
-            HAVING COUNT(*) >= 3
-        )
+        SELECT p.player_id, p.player_name
+        FROM players p
+        JOIN season_stats s ON p.player_id = s.player_id
+        GROUP BY p.player_id, p.player_name
+        HAVING COUNT(*) >= 3
         ORDER BY RANDOM()
         LIMIT 1
     """)
+    row = cursor.fetchone()
+    if row is None:
+        cursor.close()
+        return {"error": "no eligible players found"}
+
+    player_id, player_name = row
+
+    cursor.execute("""
+        SELECT season, games_played, pts, reb, ast, stl, blk
+        FROM season_stats
+        WHERE player_id = %s
+        ORDER BY RANDOM()
+        LIMIT 1
+    """, (player_id,))
     stat_row = cursor.fetchone()
 
     if stat_row is None:
         cursor.close()
-        return {"error": "no eligible players found"}
+        return {"error": "no season stats found"}
 
-    player_name, season, games, points, rebounds, assists, steals, blocks = stat_row
+    season = stat_row[0]
 
     cursor.execute("""
         SELECT season FROM (
@@ -214,6 +225,8 @@ def guess_the_season():
     """, (season,))
     wrong_seasons = [r[0] for r in cursor.fetchall()]
     cursor.close()
+
+    season, games, points, rebounds, assists, steals, blocks = stat_row
 
     stats, parts = build_stat_line(games, points, rebounds, assists, steals, blocks)
     parts_text = ", ".join(f"{value} {label}" for value, label in parts)
