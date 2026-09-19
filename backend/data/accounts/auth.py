@@ -1,7 +1,7 @@
 import secrets
 
 import bcrypt
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from data.database import db

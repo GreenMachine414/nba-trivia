@@ -23,9 +23,3 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_id INTEGER NOT NULL REFERENCES users(id),
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
-
-CREATE TABLE IF NOT EXISTS pending_answers (
-    question_id VARCHAR(64) PRIMARY KEY,
-    answer TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
