@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from . import career_path, stat_average, draft, identity, coaches, awards, answer, results
+from . import career_path, stat_average, draft, identity, coaches, awards, results
 
 router = APIRouter()
 router.include_router(career_path.router)
