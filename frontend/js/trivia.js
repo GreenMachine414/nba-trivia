@@ -19,6 +19,7 @@ const questionEndpoints = [
   '/trivia/career_path',
   '/trivia/missing_stat',
   '/trivia/season_guess',
+  '/trivia/team_guess',
   '/trivia/missing_stop',
   '/trivia/team_count',
   '/trivia/draft_player',
@@ -37,6 +38,7 @@ const questionEndpoints = [
 const TOTAL_QUESTIONS = 10;
 const QUESTION_TIME_LIMIT = 15;
 const TIMER_TICK_MS = 100;
+const REVEAL_DELAY_MS = 500;
 
 const triviaPanel = document.getElementById('trivia-panel');
 
@@ -70,6 +72,10 @@ function shuffle(array) {
     .map(({ item }) => item);
 }
 
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export function startGame() {
   questionNumber = 0;
   questionsAnswered = 0;
@@ -85,6 +91,8 @@ function askNextQuestion() {
   loadQuestion();
 }
 
+// No loading flash here on purpose - the previous question's feedback
+// stays fully visible until the new question is ready to swap in.
 async function loadQuestion() {
   const endpoint = questionEndpoints[Math.floor(Math.random() * questionEndpoints.length)];
 
@@ -256,6 +264,15 @@ function startTimer(questionId) {
   }, TIMER_TICK_MS);
 }
 
+function playRevealAnimation(overlay) {
+  overlay.classList.add('active');
+  const ball = overlay.querySelector('.reveal-ball');
+  // Restart the CSS animation each time by forcing a reflow
+  ball.style.animation = 'none';
+  void ball.offsetWidth;
+  ball.style.animation = '';
+}
+
 async function submitGuess(questionId, guess, timedOut = false) {
   if (questionLocked) return;
   questionLocked = true;
@@ -264,12 +281,20 @@ async function submitGuess(questionId, guess, timedOut = false) {
   const buttons = document.querySelectorAll('.choice-btn');
   buttons.forEach(btn => { btn.disabled = true; });
 
+  const overlay = document.getElementById('answer-reveal-overlay');
+  playRevealAnimation(overlay);
+
   try {
-    const response = await fetch(`${API_BASE}/trivia/answer`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question_id: questionId, guess }),
-    });
+    const [response] = await Promise.all([
+      fetch(`${API_BASE}/trivia/answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question_id: questionId, guess }),
+      }),
+      wait(REVEAL_DELAY_MS),
+    ]);
+
+    overlay.classList.remove('active');
 
     if (!response.ok) {
       throw new Error(`Request failed (${response.status})`);
@@ -310,6 +335,7 @@ async function submitGuess(questionId, guess, timedOut = false) {
     triviaPanel.appendChild(advanceBtn);
 
   } catch (err) {
+    overlay.classList.remove('active');
     document.getElementById('trivia-feedback').textContent =
       `Couldn't reach the backend: ${err.message}`;
   }
