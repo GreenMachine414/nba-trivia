@@ -37,8 +37,6 @@ const questionEndpoints = [
 const TOTAL_QUESTIONS = 10;
 const QUESTION_TIME_LIMIT = 15;
 const TIMER_TICK_MS = 100;
-const NEXT_ANIMATION_MS = 500;
-const SLOW_REQUEST_THRESHOLD_MS = 2000;
 
 const triviaPanel = document.getElementById('trivia-panel');
 
@@ -72,56 +70,29 @@ function shuffle(array) {
     .map(({ item }) => item);
 }
 
-// Shows a small "still loading" note if the given promise hasn't
-// resolved within SLOW_REQUEST_THRESHOLD_MS. Purely cosmetic - never
-// affects the actual request, just gives feedback during a rare slow one.
-function withSlowIndicator(promise, targetEl) {
-  const timeoutId = setTimeout(() => {
-    if (targetEl) targetEl.textContent = 'Still loading…';
-  }, SLOW_REQUEST_THRESHOLD_MS);
-
-  return promise.finally(() => clearTimeout(timeoutId));
-}
-
 export function startGame() {
-  questionNumber = 1;
+  questionNumber = 0;
   questionsAnswered = 0;
   correctCount = 0;
   gameInProgress = true;
   showScreen('trivia');
   triviaPanel.innerHTML = '<p class="trivia-loading">Loading question…</p>';
-  fetchAndRenderQuestion({ skipAnimation: true });
+  askNextQuestion();
 }
 
-// Fires the wipe animation (unless skipped) and the network fetch at
-// the same time. The overlay stays visible for whichever takes longer -
-// the animation's minimum duration, or the real fetch - so a slow
-// request never leaves a blank gap after the wipe finishes early.
-async function fetchAndRenderQuestion({ skipAnimation = false } = {}) {
+function askNextQuestion() {
+  questionNumber += 1;
+  loadQuestion();
+}
+
+async function loadQuestion() {
   const endpoint = questionEndpoints[Math.floor(Math.random() * questionEndpoints.length)];
-  const overlay = document.getElementById('next-question-overlay');
-
-  if (!skipAnimation) {
-    overlay.classList.remove('active');
-    void overlay.offsetWidth; // force reflow so the animation can restart
-    overlay.classList.add('active');
-  }
-
-  const loadingEl = skipAnimation ? triviaPanel.querySelector('.trivia-loading') : null;
-  const minimumDelay = skipAnimation
-    ? Promise.resolve()
-    : new Promise(resolve => setTimeout(resolve, NEXT_ANIMATION_MS));
 
   try {
-    const fetchPromise = withSlowIndicator(fetch(`${API_BASE}${endpoint}`), loadingEl);
-    const [response] = await Promise.all([fetchPromise, minimumDelay]);
-
-    if (!skipAnimation) overlay.classList.remove('active');
-
+    const response = await fetch(`${API_BASE}${endpoint}`);
     if (!response.ok) {
       throw new Error(`Request failed (${response.status})`);
     }
-
     const data = await response.json();
     if (data.error) {
       triviaPanel.innerHTML = `<p class="trivia-loading">${data.error}</p>`;
@@ -129,16 +100,9 @@ async function fetchAndRenderQuestion({ skipAnimation = false } = {}) {
     }
     renderQuestion(data);
   } catch (err) {
-    if (!skipAnimation) overlay.classList.remove('active');
     triviaPanel.innerHTML =
       `<p class="trivia-loading">Couldn't reach the backend: ${err.message}</p>`;
   }
-}
-
-function askNextQuestion() {
-  questionNumber += 1;
-  triviaPanel.innerHTML = '';
-  fetchAndRenderQuestion();
 }
 
 function renderQuestion(data) {
@@ -300,22 +264,12 @@ async function submitGuess(questionId, guess, timedOut = false) {
   const buttons = document.querySelectorAll('.choice-btn');
   buttons.forEach(btn => { btn.disabled = true; });
 
-  const clickedBtn = [...buttons].find(b => b.textContent === guess);
-  if (clickedBtn) clickedBtn.classList.add('selected-pending');
-
-  const feedback = document.getElementById('trivia-feedback');
-
   try {
-    const fetchPromise = withSlowIndicator(
-      fetch(`${API_BASE}/trivia/answer`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question_id: questionId, guess }),
-      }),
-      feedback
-    );
-
-    const response = await fetchPromise;
+    const response = await fetch(`${API_BASE}/trivia/answer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question_id: questionId, guess }),
+    });
 
     if (!response.ok) {
       throw new Error(`Request failed (${response.status})`);
@@ -324,7 +278,7 @@ async function submitGuess(questionId, guess, timedOut = false) {
     const result = await response.json();
 
     if (result.error) {
-      feedback.textContent = result.error;
+      document.getElementById('trivia-feedback').textContent = result.error;
       return;
     }
 
@@ -339,6 +293,7 @@ async function submitGuess(questionId, guess, timedOut = false) {
       }
     });
 
+    const feedback = document.getElementById('trivia-feedback');
     feedback.textContent = result.correct
       ? 'Correct!'
       : timedOut
@@ -355,7 +310,8 @@ async function submitGuess(questionId, guess, timedOut = false) {
     triviaPanel.appendChild(advanceBtn);
 
   } catch (err) {
-    feedback.textContent = `Couldn't reach the backend: ${err.message}`;
+    document.getElementById('trivia-feedback').textContent =
+      `Couldn't reach the backend: ${err.message}`;
   }
 }
 

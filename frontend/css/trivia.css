@@ -239,6 +239,8 @@
   color: var(--color-wrong);
 }
 
+
+
 .trivia-feedback {
   font-size: 15px;
   margin: 4px 0 22px;
@@ -280,77 +282,4 @@
   color: var(--color-muted);
   font-size: 15px;
   margin: 0 0 28px;
-}
-
-/* ---------- Answer feedback (subtle) ---------- */
-
-.choice-btn.selected-pending {
-  animation: pulse-select 0.5s ease;
-}
-
-@keyframes pulse-select {
-  0% {
-    box-shadow: 0 0 0 0 rgba(255, 182, 39, 0.5);
-  }
-  70% {
-    box-shadow: 0 0 0 10px rgba(255, 182, 39, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(255, 182, 39, 0);
-  }
-}
-
-/* ---------- Next question transition (subtle) ---------- */
-
-.next-question-overlay {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.next-wipe {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -10%;
-  width: 120%;
-  background: var(--color-accent);
-  transform: translateX(-100%);
-}
-
-.next-question-overlay.active .next-wipe {
-  animation: wipe-across 0.5s cubic-bezier(0.6, 0, 0.4, 1) forwards;
-}
-
-@keyframes wipe-across {
-  0% { transform: translateX(-100%); }
-  50% { transform: translateX(0%); }
-  100% { transform: translateX(100%); }
-}
-
-.next-label {
-  position: relative;
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: 3px;
-  color: #1C1712;
-  text-transform: uppercase;
-  opacity: 0;
-}
-
-.next-question-overlay.active .next-label {
-  animation: label-flash 0.5s ease forwards;
-}
-
-@keyframes label-flash {
-  0%, 30% { opacity: 0; }
-  45% { opacity: 1; }
-  65% { opacity: 1; }
-  100% { opacity: 0; }
 }
