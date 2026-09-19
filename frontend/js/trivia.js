@@ -37,7 +37,7 @@ const questionEndpoints = [
 const TOTAL_QUESTIONS = 10;
 const QUESTION_TIME_LIMIT = 15;
 const TIMER_TICK_MS = 100;
-const NEXT_ANIMATION_MS = 900;
+const NEXT_ANIMATION_MS = 500;
 
 const triviaPanel = document.getElementById('trivia-panel');
 
