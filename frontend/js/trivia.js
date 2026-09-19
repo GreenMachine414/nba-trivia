@@ -46,6 +46,7 @@ let correctCount = 0;
 let timerInterval = null;
 let questionLocked = false;
 let gameInProgress = false;
+let currentAnswerHash = null;
 
 export function isGameInProgress() {
   return gameInProgress;
@@ -68,6 +69,16 @@ function shuffle(array) {
     .map(item => ({ item, sort: Math.random() }))
     .sort((a, b) => a.sort - b.sort)
     .map(({ item }) => item);
+}
+
+// Matches the backend's hash_answer(): lowercased, trimmed, SHA-256 hex.
+async function hashAnswer(text) {
+  const normalized = text.trim().toLowerCase();
+  const data = new TextEncoder().encode(normalized);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 export function startGame() {
@@ -106,6 +117,8 @@ async function loadQuestion() {
 }
 
 function renderQuestion(data) {
+  currentAnswerHash = data.answer_hash;
+
   const dotColor = questionTypeColors[data.question_type] || '#9C9284';
   const choices = shuffle(data.choices);
 
@@ -224,14 +237,14 @@ function renderQuestion(data) {
     const btn = document.createElement('button');
     btn.className = 'choice-btn';
     btn.textContent = choice;
-    btn.addEventListener('click', () => submitGuess(data.question_id, choice));
+    btn.addEventListener('click', () => submitGuess(choice));
     choicesGrid.appendChild(btn);
   });
 
-  startTimer(data.question_id);
+  startTimer();
 }
 
-function startTimer(questionId) {
+function startTimer() {
   questionLocked = false;
   clearInterval(timerInterval);
 
@@ -250,13 +263,14 @@ function startTimer(questionId) {
     if (remaining <= 0) {
       clearInterval(timerInterval);
       if (!questionLocked) {
-        submitGuess(questionId, '', true);
+        submitGuess('', true);
       }
     }
   }, TIMER_TICK_MS);
 }
 
-async function submitGuess(questionId, guess, timedOut = false) {
+// No fetch here at all - the hash comparison is instant and entirely local.
+async function submitGuess(guess, timedOut = false) {
   if (questionLocked) return;
   questionLocked = true;
   clearInterval(timerInterval);
@@ -264,55 +278,40 @@ async function submitGuess(questionId, guess, timedOut = false) {
   const buttons = document.querySelectorAll('.choice-btn');
   buttons.forEach(btn => { btn.disabled = true; });
 
-  try {
-    const response = await fetch(`${API_BASE}/trivia/answer`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question_id: questionId, guess }),
-    });
+  const guessHash = guess ? await hashAnswer(guess) : null;
+  const correct = guessHash === currentAnswerHash;
 
-    if (!response.ok) {
-      throw new Error(`Request failed (${response.status})`);
+  if (correct) correctCount += 1;
+  questionsAnswered += 1;
+
+  const correctBtn = [...buttons].find(async btn => (await hashAnswer(btn.textContent)) === currentAnswerHash);
+  // Fallback: find the correct button by re-hashing each choice, since
+  // we only have the hash, not the plaintext answer, until now.
+  for (const btn of buttons) {
+    const btnHash = await hashAnswer(btn.textContent);
+    if (btnHash === currentAnswerHash) {
+      btn.classList.add('correct');
+    } else if (btn.textContent === guess) {
+      btn.classList.add('incorrect');
     }
-
-    const result = await response.json();
-
-    if (result.error) {
-      document.getElementById('trivia-feedback').textContent = result.error;
-      return;
-    }
-
-    if (result.correct) correctCount += 1;
-    questionsAnswered += 1;
-
-    buttons.forEach(btn => {
-      if (btn.textContent === result.answer) {
-        btn.classList.add('correct');
-      } else if (btn.textContent === guess) {
-        btn.classList.add('incorrect');
-      }
-    });
-
-    const feedback = document.getElementById('trivia-feedback');
-    feedback.textContent = result.correct
-      ? 'Correct!'
-      : timedOut
-        ? `Time's up — it was ${result.answer}.`
-        : `Not quite — it was ${result.answer}.`;
-    feedback.classList.add(result.correct ? 'correct' : 'incorrect');
-
-    const isLastQuestion = questionNumber >= TOTAL_QUESTIONS;
-
-    const advanceBtn = document.createElement('button');
-    advanceBtn.className = 'next-btn';
-    advanceBtn.textContent = isLastQuestion ? 'See Results' : 'Next Question';
-    advanceBtn.addEventListener('click', isLastQuestion ? showResults : askNextQuestion);
-    triviaPanel.appendChild(advanceBtn);
-
-  } catch (err) {
-    document.getElementById('trivia-feedback').textContent =
-      `Couldn't reach the backend: ${err.message}`;
   }
+
+  const feedback = document.getElementById('trivia-feedback');
+  const correctText = [...buttons].find(b => b.classList.contains('correct'))?.textContent || '';
+  feedback.textContent = correct
+    ? 'Correct!'
+    : timedOut
+      ? `Time's up — it was ${correctText}.`
+      : `Not quite — it was ${correctText}.`;
+  feedback.classList.add(correct ? 'correct' : 'incorrect');
+
+  const isLastQuestion = questionNumber >= TOTAL_QUESTIONS;
+
+  const advanceBtn = document.createElement('button');
+  advanceBtn.className = 'next-btn';
+  advanceBtn.textContent = isLastQuestion ? 'See Results' : 'Next Question';
+  advanceBtn.addEventListener('click', isLastQuestion ? showResults : askNextQuestion);
+  triviaPanel.appendChild(advanceBtn);
 }
 
 function showResults() {

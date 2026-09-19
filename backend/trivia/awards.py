@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from data.database import db
 
-from .engine import build_question_base
+from .engine import build_question_base, hash_answer
 
 router = APIRouter()
 
@@ -28,6 +28,7 @@ class AwardWinnerQuestion(BaseModel):
     question_type: str
     question: str
     choices: list[str]
+    answer_hash: str
 
 
 class CareerResumeQuestion(BaseModel):
@@ -36,6 +37,7 @@ class CareerResumeQuestion(BaseModel):
     question: str
     resume: list[str]
     choices: list[str]
+    answer_hash: str
 
 
 @router.get("/trivia/award_winner", response_model=AwardWinnerQuestion)
@@ -68,6 +70,7 @@ def guess_award_winner():
         question_type=QUESTION_TYPE,
         question=question,
         choices=choices,
+        answer_hash=hash_answer(player_name),
     )
 
 
@@ -127,4 +130,5 @@ def guess_career_resume():
         question=question,
         resume=resume_lines,
         choices=choices,
+        answer_hash=hash_answer(player_name),
     )

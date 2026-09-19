@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from data.database import db
 
-from .engine import build_question_base, register_answer
+from .engine import build_question_base, register_answer, hash_answer
 
 router = APIRouter()
 
@@ -26,6 +26,7 @@ class StatTriviaQuestion(BaseModel):
     question: str
     stats: StatLine
     choices: list[str]
+    answer_hash: str
 
 
 class MissingStatQuestion(BaseModel):
@@ -35,6 +36,7 @@ class MissingStatQuestion(BaseModel):
     stats: StatLine
     hidden_stat: str
     choices: list[str]
+    answer_hash: str
 
 
 class SeasonGuessQuestion(BaseModel):
@@ -43,6 +45,7 @@ class SeasonGuessQuestion(BaseModel):
     question: str
     stats: StatLine
     choices: list[str]
+    answer_hash: str
 
 
 class TeamGuessQuestion(BaseModel):
@@ -52,10 +55,10 @@ class TeamGuessQuestion(BaseModel):
     stats: StatLine
     season: str
     choices: list[str]
+    answer_hash: str
 
 
 def build_numeric_choices(correct_value: float, spread: float = 3.0) -> list[str]:
-    """Generate 3 plausible-but-wrong numeric decoys near the correct value."""
     wrong_values = set()
     while len(wrong_values) < 3:
         offset = random.uniform(-spread, spread)
@@ -69,9 +72,6 @@ def build_numeric_choices(correct_value: float, spread: float = 3.0) -> list[str
 
 
 def build_stat_line(games, points, rebounds, assists, steals, blocks) -> tuple[StatLine, list[tuple[float, str]]]:
-    """Builds a StatLine (nulling out unavailable categories) and a parallel
-    list of (value, label) pairs for only the stats that actually exist,
-    so question text never references a stat this season doesn't track."""
     ppg = round(points / games, 1)
     rpg = round(rebounds / games, 1)
     apg = round(assists / games, 1)
@@ -123,6 +123,7 @@ def guess_season_average():
         question=question,
         stats=stats,
         choices=choices,
+        answer_hash=hash_answer(player_name),
     )
 
 
@@ -164,7 +165,7 @@ def guess_missing_stat():
         f"What was his {hidden_label}?"
     )
 
-    setattr(stats, hidden_field, None)  # hide the answer from the returned stat line
+    setattr(stats, hidden_field, None)
 
     choices = build_numeric_choices(hidden_value)
     question_id = register_answer(str(hidden_value))
@@ -176,6 +177,7 @@ def guess_missing_stat():
         stats=stats,
         hidden_stat=hidden_field,
         choices=choices,
+        answer_hash=hash_answer(str(hidden_value)),
     )
 
 
@@ -185,35 +187,24 @@ def guess_the_season():
     cursor = db.connection.cursor()
 
     cursor.execute("""
-        SELECT p.player_id, p.player_name
-        FROM players p
-        JOIN season_stats s ON p.player_id = s.player_id
-        GROUP BY p.player_id, p.player_name
-        HAVING COUNT(*) >= 3
+        SELECT p.player_name, s.season, s.games_played, s.pts, s.reb, s.ast, s.stl, s.blk
+        FROM season_stats s
+        JOIN players p ON p.player_id = s.player_id
+        WHERE s.player_id IN (
+            SELECT player_id FROM season_stats
+            GROUP BY player_id
+            HAVING COUNT(*) >= 3
+        )
         ORDER BY RANDOM()
         LIMIT 1
     """)
-    row = cursor.fetchone()
-    if row is None:
-        cursor.close()
-        return {"error": "no eligible players found"}
-
-    player_id, player_name = row
-
-    cursor.execute("""
-        SELECT season, games_played, pts, reb, ast, stl, blk
-        FROM season_stats
-        WHERE player_id = %s
-        ORDER BY RANDOM()
-        LIMIT 1
-    """, (player_id,))
     stat_row = cursor.fetchone()
 
     if stat_row is None:
         cursor.close()
-        return {"error": "no season stats found"}
+        return {"error": "no eligible players found"}
 
-    season = stat_row[0]
+    player_name, season, games, points, rebounds, assists, steals, blocks = stat_row
 
     cursor.execute("""
         SELECT season FROM (
@@ -225,8 +216,6 @@ def guess_the_season():
     """, (season,))
     wrong_seasons = [r[0] for r in cursor.fetchall()]
     cursor.close()
-
-    season, games, points, rebounds, assists, steals, blocks = stat_row
 
     stats, parts = build_stat_line(games, points, rebounds, assists, steals, blocks)
     parts_text = ", ".join(f"{value} {label}" for value, label in parts)
@@ -244,4 +233,58 @@ def guess_the_season():
         question=question,
         stats=stats,
         choices=choices,
+        answer_hash=hash_answer(season),
+    )
+
+
+@router.get("/trivia/team_guess", response_model=TeamGuessQuestion)
+def guess_the_team():
+    db.ensure_connected()
+    cursor = db.connection.cursor()
+
+    cursor.execute("""
+        SELECT s.player_id, p.player_name, s.season, s.team_id,
+               s.games_played, s.pts, s.reb, s.ast, s.stl, s.blk,
+               t.abbreviation
+        FROM season_stats s
+        JOIN players p ON p.player_id = s.player_id
+        JOIN teams t ON t.team_id = s.team_id
+        ORDER BY RANDOM()
+        LIMIT 1
+    """)
+    row = cursor.fetchone()
+
+    if row is None:
+        cursor.close()
+        return {"error": "no eligible player-season rows found"}
+
+    player_id, player_name, season, team_id, games, points, rebounds, assists, steals, blocks, correct_team = row
+
+    cursor.execute("""
+        SELECT abbreviation FROM teams
+        WHERE abbreviation != %s
+        ORDER BY RANDOM()
+        LIMIT 3
+    """, (correct_team,))
+    wrong_teams = [r[0] for r in cursor.fetchall()]
+    cursor.close()
+
+    stats, parts = build_stat_line(games, points, rebounds, assists, steals, blocks)
+    ppg = parts[0][0]
+
+    question = f"Which team did {player_name} play for while averaging {ppg} PPG in the {season} season?"
+
+    choices = [correct_team] + wrong_teams
+    random.shuffle(choices)
+
+    question_id = register_answer(correct_team)
+
+    return TeamGuessQuestion(
+        question_id=question_id,
+        question_type=QUESTION_TYPE,
+        question=question,
+        stats=stats,
+        season=season,
+        choices=choices,
+        answer_hash=hash_answer(correct_team),
     )

@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from data.database import db
 
-from .engine import build_question_base, register_answer
+from .engine import build_question_base, register_answer, hash_answer
 
 router = APIRouter()
 
@@ -24,6 +24,7 @@ class PathTriviaQuestion(BaseModel):
     question: str
     path: list[PathStop]
     choices: list[str]
+    answer_hash: str
 
 
 class MissingStopQuestion(BaseModel):
@@ -34,6 +35,7 @@ class MissingStopQuestion(BaseModel):
     path: list[PathStop]
     hidden_index: int
     choices: list[str]
+    answer_hash: str
 
 
 class TeamCountQuestion(BaseModel):
@@ -42,11 +44,10 @@ class TeamCountQuestion(BaseModel):
     question: str
     player_name: str
     choices: list[str]
+    answer_hash: str
 
 
 def fetch_random_eligible_player(cursor, min_stops: int = 3):
-    """Returns (player_id, player_name) for a random player with at least
-    min_stops distinct roster entries, or None if none qualify."""
     cursor.execute("""
         SELECT rosters.player_id, players.player_name
         FROM rosters
@@ -60,8 +61,6 @@ def fetch_random_eligible_player(cursor, min_stops: int = 3):
 
 
 def fetch_career_path(cursor, player_id: int) -> list[PathStop]:
-    """Builds a collapsed list of PathStop entries (consecutive seasons
-    on the same team merged into one stop) for a given player."""
     cursor.execute("""
         SELECT rosters.season, teams.abbreviation
         FROM rosters
@@ -108,6 +107,7 @@ def guess_career_path():
         question=question,
         path=path,
         choices=choices,
+        answer_hash=hash_answer(player_name),
     )
 
 
@@ -161,6 +161,7 @@ def guess_missing_stop():
         path=visible_path,
         hidden_index=hidden_index,
         choices=choices,
+        answer_hash=hash_answer(correct_team),
     )
 
 
@@ -202,4 +203,5 @@ def guess_team_count():
         question=question,
         player_name=player_name,
         choices=choices,
+        answer_hash=hash_answer(str(correct_count)),
     )
