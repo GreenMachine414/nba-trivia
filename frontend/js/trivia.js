@@ -72,18 +72,13 @@ function shuffle(array) {
 }
 
 export function startGame() {
-  questionNumber = 0;
+  questionNumber = 1;
   questionsAnswered = 0;
   correctCount = 0;
   gameInProgress = true;
   showScreen('trivia');
   triviaPanel.innerHTML = '<p class="trivia-loading">Loading question…</p>';
-  loadFirstQuestion();
-}
-
-async function loadFirstQuestion() {
-  questionNumber += 1;
-  loadQuestion();
+  fetchAndRenderQuestion();
 }
 
 function playNextQuestionAnimation() {
@@ -99,23 +94,21 @@ function playNextQuestionAnimation() {
   });
 }
 
-async function askNextQuestion() {
-  questionNumber += 1;
-  triviaPanel.innerHTML = '';
-  await playNextQuestionAnimation();
-  loadQuestion();
-}
-
-// No loading flash here on purpose - the previous question's feedback
-// stays fully visible until the new question is ready to swap in.
-async function loadQuestion() {
+// Fires the animation and the network fetch at the same time, so the
+// fetch is never delayed by waiting on the animation - whichever
+// finishes last determines when the new question actually renders.
+async function fetchAndRenderQuestion() {
   const endpoint = questionEndpoints[Math.floor(Math.random() * questionEndpoints.length)];
+  const animationPromise = playNextQuestionAnimation();
 
   try {
-    const response = await fetch(`${API_BASE}${endpoint}`);
+    const fetchPromise = fetch(`${API_BASE}${endpoint}`);
+    const [response] = await Promise.all([fetchPromise, animationPromise]);
+
     if (!response.ok) {
       throw new Error(`Request failed (${response.status})`);
     }
+
     const data = await response.json();
     if (data.error) {
       triviaPanel.innerHTML = `<p class="trivia-loading">${data.error}</p>`;
@@ -126,6 +119,12 @@ async function loadQuestion() {
     triviaPanel.innerHTML =
       `<p class="trivia-loading">Couldn't reach the backend: ${err.message}</p>`;
   }
+}
+
+function askNextQuestion() {
+  questionNumber += 1;
+  triviaPanel.innerHTML = '';
+  fetchAndRenderQuestion();
 }
 
 function renderQuestion(data) {
