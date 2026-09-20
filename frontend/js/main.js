@@ -15,6 +15,8 @@ document.getElementById('account-link').addEventListener('click', () => {
 });
 
 backBtn.addEventListener('click', async (e) => {
+  const target = e.currentTarget.dataset.target;
+
   clearGameTimer();
 
   if (screens.trivia.classList.contains('active') && isGameInProgress() && getQuestionsAnswered() > 0) {
@@ -23,7 +25,6 @@ backBtn.addEventListener('click', async (e) => {
 
   endGame();
 
-  const target = e.currentTarget.dataset.target;
   if (target) showScreen(target);
 });
 
