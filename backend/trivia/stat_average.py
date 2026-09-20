@@ -67,7 +67,7 @@ def build_numeric_choices(correct_value: float, spread: float = 3.0) -> list[str
             wrong_values.add(candidate)
 
     choices = [str(correct_value)] + [str(v) for v in wrong_values]
-    random.shuffle(choices)
+
     return choices
 
 
@@ -95,22 +95,48 @@ def guess_season_average():
     cursor = db.connection.cursor()
 
     cursor.execute("""
-        SELECT p.player_id, p.player_name, s.season,
-               s.games_played, s.pts, s.reb, s.ast, s.stl, s.blk
-        FROM season_stats s
-        JOIN players p ON p.player_id = s.player_id
+        SELECT 
+            p.name,
+            season.season_name,
+            SUM(s.games_played) AS games,
+            SUM(s.pts) AS points,
+            SUM(s.reb) AS rebounds,
+            SUM(s.ast) AS assists,
+            SUM(s.stl) AS steals,
+            SUM(s.blk) AS blocks
+        FROM player_season s
+        JOIN player p 
+            ON p.player_id = s.player_id
+        JOIN season
+            ON s.season_id = season.season_id
+        GROUP BY
+            season.season_name,
+            p.player_id,
+            p.name
+        HAVING 
+            SUM(s.games_played) >= 20
+            AND SUM(s.pts)::DECIMAL / SUM(s.games_played) >= 5
         ORDER BY RANDOM()
-        LIMIT 1
+        LIMIT 1;
     """)
+
     row = cursor.fetchone()
     cursor.close()
 
     if row is None:
         return {"error": "no season stats found"}
 
-    player_id, player_name, season, games, points, rebounds, assists, steals, blocks = row
+    player_name, season, games, points, rebounds, assists, steals, blocks = row
 
-    stats, parts = build_stat_line(games, points, rebounds, assists, steals, blocks)
+    stats, parts = build_stat_line(
+        games,
+        points,
+        rebounds,
+        assists,
+        steals,
+        blocks
+    )
+
     parts_text = ", ".join(f"{value} {label}" for value, label in parts)
 
     question = f"Who averaged {parts_text} in the {season} season?"
@@ -133,14 +159,31 @@ def guess_missing_stat():
     cursor = db.connection.cursor()
 
     cursor.execute("""
-        SELECT p.player_name, s.season,
-               s.games_played, s.pts, s.reb, s.ast, s.stl, s.blk
-        FROM season_stats s
-        JOIN players p ON p.player_id = s.player_id
-        WHERE s.games_played >= 20
+        SELECT
+            p.name,
+            season.season_name,
+            SUM(s.games_played) AS games,
+            SUM(s.pts) AS points,
+            SUM(s.reb) AS rebounds,
+            SUM(s.ast) AS assists,
+            SUM(s.stl) AS steals,
+            SUM(s.blk) AS blocks
+        FROM player_season s
+        JOIN player p
+            ON p.player_id = s.player_id
+        JOIN season
+            ON s.season_id = season.season_id
+        GROUP BY
+            season.season_name,
+            p.player_id,
+            p.name
+        HAVING
+            SUM(s.games_played) >= 20
+            AND SUM(s.pts)::DECIMAL / SUM(s.games_played) >= 5
         ORDER BY RANDOM()
         LIMIT 1
     """)
+
     row = cursor.fetchone()
     cursor.close()
 
@@ -149,19 +192,38 @@ def guess_missing_stat():
 
     player_name, season, games, points, rebounds, assists, steals, blocks = row
 
-    stats, parts = build_stat_line(games, points, rebounds, assists, steals, blocks)
+    stats, parts = build_stat_line(
+        games,
+        points,
+        rebounds,
+        assists,
+        steals,
+        blocks
+    )
 
     if len(parts) < 2:
         return {"error": "not enough available stats for this season"}
 
-    stat_field_map = {"PPG": "ppg", "RPG": "rpg", "APG": "apg", "SPG": "spg", "BPG": "bpg"}
+    stat_field_map = {
+        "PPG": "ppg",
+        "RPG": "rpg",
+        "APG": "apg",
+        "SPG": "spg",
+        "BPG": "bpg"
+    }
+
     hidden_value, hidden_label = random.choice(parts)
     hidden_field = stat_field_map[hidden_label]
 
-    shown_parts = [f"{value} {label}" for value, label in parts if label != hidden_label]
+    shown_parts = [
+        f"{value} {label}"
+        for value, label in parts
+        if label != hidden_label
+    ]
 
     question = (
-        f"{player_name} averaged {', '.join(shown_parts)} in the {season} season. "
+        f"{player_name} averaged {', '.join(shown_parts)} "
+        f"in the {season} season. "
         f"What was his {hidden_label}?"
     )
 
@@ -187,17 +249,31 @@ def guess_the_season():
     cursor = db.connection.cursor()
 
     cursor.execute("""
-        SELECT p.player_name, s.season, s.games_played, s.pts, s.reb, s.ast, s.stl, s.blk
-        FROM season_stats s
-        JOIN players p ON p.player_id = s.player_id
-        WHERE s.player_id IN (
-            SELECT player_id FROM season_stats
-            GROUP BY player_id
-            HAVING COUNT(*) >= 3
-        )
+        SELECT
+            p.name,
+            season.season_name,
+            SUM(s.games_played) AS games,
+            SUM(s.pts) AS points,
+            SUM(s.reb) AS rebounds,
+            SUM(s.ast) AS assists,
+            SUM(s.stl) AS steals,
+            SUM(s.blk) AS blocks
+        FROM player_season s
+        JOIN player p
+            ON p.player_id = s.player_id
+        JOIN season
+            ON s.season_id = season.season_id
+        GROUP BY
+            season.season_name,
+            p.player_id,
+            p.name
+        HAVING
+            SUM(s.games_played) >= 20
+            AND SUM(s.pts)::DECIMAL / SUM(s.games_played) >= 5
         ORDER BY RANDOM()
-        LIMIT 1
+        LIMIT 1;
     """)
+
     stat_row = cursor.fetchone()
 
     if stat_row is None:
@@ -207,23 +283,33 @@ def guess_the_season():
     player_name, season, games, points, rebounds, assists, steals, blocks = stat_row
 
     cursor.execute("""
-        SELECT season FROM (
-            SELECT DISTINCT season FROM season_stats
-            WHERE season != %s
-        ) AS distinct_seasons
+        SELECT season_name
+        FROM season
+        WHERE season_name != %s
         ORDER BY RANDOM()
         LIMIT 3
     """, (season,))
+
     wrong_seasons = [r[0] for r in cursor.fetchall()]
     cursor.close()
 
-    stats, parts = build_stat_line(games, points, rebounds, assists, steals, blocks)
-    parts_text = ", ".join(f"{value} {label}" for value, label in parts)
+    stats, parts = build_stat_line(
+        games,
+        points,
+        rebounds,
+        assists,
+        steals,
+        blocks
+    )
+
+    parts_text = ", ".join(
+        f"{value} {label}"
+        for value, label in parts
+    )
 
     question = f"In which season did {player_name} average {parts_text}?"
 
     choices = [season] + wrong_seasons
-    random.shuffle(choices)
 
     question_id = register_answer(season)
 
@@ -233,58 +319,5 @@ def guess_the_season():
         question=question,
         stats=stats,
         choices=choices,
-        answer_hash=hash_answer(season),
-    )
-
-
-@router.get("/trivia/team_guess", response_model=TeamGuessQuestion)
-def guess_the_team():
-    db.ensure_connected()
-    cursor = db.connection.cursor()
-
-    cursor.execute("""
-        SELECT s.player_id, p.player_name, s.season, s.team_id,
-               s.games_played, s.pts, s.reb, s.ast, s.stl, s.blk,
-               t.abbreviation
-        FROM season_stats s
-        JOIN players p ON p.player_id = s.player_id
-        JOIN teams t ON t.team_id = s.team_id
-        ORDER BY RANDOM()
-        LIMIT 1
-    """)
-    row = cursor.fetchone()
-
-    if row is None:
-        cursor.close()
-        return {"error": "no eligible player-season rows found"}
-
-    player_id, player_name, season, team_id, games, points, rebounds, assists, steals, blocks, correct_team = row
-
-    cursor.execute("""
-        SELECT abbreviation FROM teams
-        WHERE abbreviation != %s
-        ORDER BY RANDOM()
-        LIMIT 3
-    """, (correct_team,))
-    wrong_teams = [r[0] for r in cursor.fetchall()]
-    cursor.close()
-
-    stats, parts = build_stat_line(games, points, rebounds, assists, steals, blocks)
-    ppg = parts[0][0]
-
-    question = f"Which team did {player_name} play for while averaging {ppg} PPG in the {season} season?"
-
-    choices = [correct_team] + wrong_teams
-    random.shuffle(choices)
-
-    question_id = register_answer(correct_team)
-
-    return TeamGuessQuestion(
-        question_id=question_id,
-        question_type=QUESTION_TYPE,
-        question=question,
-        stats=stats,
-        season=season,
-        choices=choices,
-        answer_hash=hash_answer(correct_team),
+        answer_hash=hash_answer(season)
     )

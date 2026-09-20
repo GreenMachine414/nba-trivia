@@ -1,6 +1,6 @@
 import random
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from data.database import db
@@ -37,59 +37,97 @@ class CareerJerseysQuestion(BaseModel):
 
 
 def parse_jersey_numbers(raw: str) -> list[int]:
-    if raw is None:
+    if not raw:
         return []
-    parts = raw.split("-")
+
     numbers = []
-    for part in parts:
+
+    for part in raw.split("-"):
         part = part.strip()
+
         if part.isdigit():
             numbers.append(int(part))
+
     return numbers
 
 
-def build_numeric_choices(correct_value: int, spread: int = 20, min_value: int = 0, max_value: int = 99) -> list[str]:
+def build_numeric_choices(
+    correct_value: int,
+    spread: int = 20,
+    min_value: int = 1,
+    max_value: int = 99
+) -> list[str]:
+
     wrong_values = set()
+
     while len(wrong_values) < 3:
         offset = random.randint(-spread, spread)
         candidate = correct_value + offset
-        if candidate != correct_value and min_value <= candidate <= max_value:
+
+        if (
+            candidate != correct_value
+            and min_value <= candidate <= max_value
+        ):
             wrong_values.add(candidate)
 
-    choices = [str(correct_value)] + [str(v) for v in wrong_values]
-    random.shuffle(choices)
+    choices = [str(correct_value)] + [
+        str(value) for value in wrong_values
+    ]
+
     return choices
 
 
 @router.get("/trivia/jersey_player", response_model=JerseyPlayerQuestion)
 def guess_jersey_player():
+
     db.ensure_connected()
     cursor = db.connection.cursor()
 
     cursor.execute("""
-        SELECT r.player_id, p.player_name, r.season, r.jersey_number, t.abbreviation
-        FROM rosters r
-        JOIN players p ON p.player_id = r.player_id
-        JOIN teams t ON t.team_id = r.team_id
-        WHERE r.jersey_number IS NOT NULL
+        SELECT
+            p.name,
+            s.season_name,
+            r.jersey_number,
+            f.abbreviation
+        FROM roster r
+        JOIN player p
+            ON p.player_id = r.player_id
+        JOIN franchise f
+            ON f.team_id = r.team_id
+        JOIN season s
+            ON s.season_id = r.season_id
+        WHERE
+            r.jersey_number IS NOT NULL
+            AND p.notice_flag = TRUE
         ORDER BY RANDOM()
         LIMIT 1
     """)
+
     row = cursor.fetchone()
     cursor.close()
 
     if row is None:
-        return {"error": "no roster data found"}
+        raise HTTPException(
+            status_code=404,
+            detail="No roster data found"
+        )
 
-    player_id, player_name, season, jersey_number, team = row
+    player_name, season, jersey_number, team = row
 
     numbers = parse_jersey_numbers(jersey_number)
+
     if not numbers:
-        return {"error": "no valid jersey number found"}
+        raise HTTPException(
+            status_code=404,
+            detail="No valid jersey number found"
+        )
 
     jersey_number_display = random.choice(numbers)
 
-    question = f"Who wore #{jersey_number_display} for the {team} in the {season} season?"
+    question = (
+        f"Who wore #{jersey_number_display} for the "
+        f"{team} in the {season} season?"
+    )
 
     question_id, choices = build_question_base(player_name)
 
@@ -104,35 +142,58 @@ def guess_jersey_player():
 
 @router.get("/trivia/jersey_number", response_model=JerseyNumberQuestion)
 def guess_jersey_number():
+
     db.ensure_connected()
     cursor = db.connection.cursor()
 
     cursor.execute("""
-        SELECT r.player_id, p.player_name, r.season, r.jersey_number, t.abbreviation
-        FROM rosters r
-        JOIN players p ON p.player_id = r.player_id
-        JOIN teams t ON t.team_id = r.team_id
-        WHERE r.jersey_number IS NOT NULL
+        SELECT
+            p.name,
+            s.season_name,
+            r.jersey_number,
+            f.abbreviation
+        FROM roster r
+        JOIN player p
+            ON p.player_id = r.player_id
+        JOIN franchise f
+            ON f.team_id = r.team_id
+        JOIN season s
+            ON s.season_id = r.season_id
+        WHERE
+            r.jersey_number IS NOT NULL
+            AND p.notice_flag = TRUE
         ORDER BY RANDOM()
         LIMIT 1
     """)
+
     row = cursor.fetchone()
     cursor.close()
 
     if row is None:
-        return {"error": "no roster data found"}
+        raise HTTPException(
+            status_code=404,
+            detail="No roster data found"
+        )
 
-    player_id, player_name, season, jersey_number, team = row
+    player_name, season, jersey_number, team = row
 
     numbers = parse_jersey_numbers(jersey_number)
+
     if not numbers:
-        return {"error": "no valid jersey number found"}
+        raise HTTPException(
+            status_code=404,
+            detail="No valid jersey number found"
+        )
 
     jersey_number_int = random.choice(numbers)
 
-    question = f"What jersey number did {player_name} wear for the {team} in the {season} season?"
+    question = (
+        f"What jersey number did {player_name} wear for the "
+        f"{team} in the {season} season?"
+    )
 
     choices = build_numeric_choices(jersey_number_int)
+
     question_id = register_answer(str(jersey_number_int))
 
     return JerseyNumberQuestion(
@@ -146,69 +207,105 @@ def guess_jersey_number():
 
 @router.get("/trivia/career_jerseys", response_model=CareerJerseysQuestion)
 def guess_career_jerseys():
+
     db.ensure_connected()
     cursor = db.connection.cursor()
 
     cursor.execute("""
-        SELECT rosters.player_id, players.player_name
-        FROM rosters
-        JOIN players ON players.player_id = rosters.player_id
-        WHERE rosters.jersey_number IS NOT NULL
-        GROUP BY rosters.player_id, players.player_name
+        SELECT
+            p.player_id,
+            p.name,
+            ARRAY_AGG(DISTINCT r.jersey_number) AS jersey_numbers
+        FROM player p
+        JOIN roster r
+            ON r.player_id = p.player_id
+        WHERE
+            p.notice_flag = TRUE
+            AND r.jersey_number IS NOT NULL
+        GROUP BY
+            p.player_id,
+            p.name
         ORDER BY RANDOM()
         LIMIT 1
     """)
+
     row = cursor.fetchone()
+
     if row is None:
         cursor.close()
-        return {"error": "no eligible players found"}
+        raise HTTPException(
+            status_code=404,
+            detail="No eligible players found"
+        )
 
-    player_id, player_name = row
+    player_id, player_name, raw_numbers = row
 
-    cursor.execute("""
-        SELECT DISTINCT jersey_number FROM rosters
-        WHERE player_id = %s AND jersey_number IS NOT NULL
-    """, (player_id,))
-    real_numbers = sorted({n for (raw,) in cursor.fetchall() for n in parse_jersey_numbers(raw)})
+    career_numbers = set()
 
-    if not real_numbers:
-        cursor.close()
-        return {"error": "no eligible players found"}
-
-    correct_answer = ", ".join(str(n) for n in real_numbers)
+    for jersey_number in raw_numbers:
+        career_numbers.update(
+            parse_jersey_numbers(jersey_number)
+        )
 
     cursor.execute("""
-        SELECT player_id, jersey_number FROM rosters
-        WHERE player_id != %s AND jersey_number IS NOT NULL
-        ORDER BY RANDOM()
-        LIMIT 200
-    """, (player_id,))
-    other_by_player: dict[int, set[int]] = {}
-    for pid, jersey in cursor.fetchall():
-        other_by_player.setdefault(pid, set()).update(parse_jersey_numbers(jersey))
+        SELECT
+            p.player_id,
+            p.name,
+            ARRAY_AGG(DISTINCT r.jersey_number) AS jersey_numbers
+        FROM player p
+        JOIN roster r
+            ON r.player_id = p.player_id
+        WHERE
+            p.notice_flag = TRUE
+            AND p.player_id != %s
+            AND p.name != %s
+            AND r.jersey_number IS NOT NULL
+        GROUP BY
+            p.player_id,
+            p.name
+    """, (player_id, player_name))
+
+    candidates = cursor.fetchall()
     cursor.close()
 
-    wrong_options = {
-        ", ".join(str(n) for n in sorted(numbers))
-        for numbers in other_by_player.values() if numbers
-    } - {correct_answer}
+    wrong_choices = []
 
-    while len(wrong_options) < 3:
-        filler = ", ".join(str(n) for n in sorted({random.randint(0, 55) for _ in range(len(real_numbers))}))
-        wrong_options.add(filler)
-    wrong_options.discard(correct_answer)
+    for _, candidate_name, raw_numbers in candidates:
 
-    question = f"Which jersey number(s) did {player_name} wear throughout his career?"
+        candidate_numbers = set()
 
-    choices = [correct_answer] + list(wrong_options)[:3]
-    random.shuffle(choices)
+        for jersey_number in raw_numbers:
+            candidate_numbers.update(
+                parse_jersey_numbers(jersey_number)
+            )
 
-    question_id = register_answer(correct_answer)
+        if candidate_numbers != career_numbers:
+            wrong_choices.append(candidate_name)
+
+    if len(wrong_choices) < 3:
+        raise HTTPException(
+            status_code=404,
+            detail="Not enough valid choices found"
+        )
+
+    choices = [player_name] + wrong_choices[:3]
+
+    jersey_numbers = ", ".join(
+        f"#{number}"
+        for number in sorted(career_numbers)
+    )
+
+    question = (
+        f"What player wore the following jersey number(s) "
+        f"throughout their career? {jersey_numbers}"
+    )
+
+    question_id, _ = build_question_base(player_name)
 
     return CareerJerseysQuestion(
         question_id=question_id,
         question_type=QUESTION_TYPE,
         question=question,
         choices=choices,
-        answer_hash=hash_answer(correct_answer),
+        answer_hash=hash_answer(player_name),
     )

@@ -28,14 +28,12 @@ async def log_request_time(request, call_next):
     return response
 
 
-@app.get("/ping")
-def ping():
-    return {"status": "ok"}
-
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://statline-trivia.netlify.app"],
+    allow_origins=[
+        "https://statline-trivia.netlify.app",
+        "http://localhost:5500",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
     max_age=3600

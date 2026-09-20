@@ -24,7 +24,6 @@ const questionEndpoints = [
   '/trivia/draft_player',
   '/trivia/overall_pick',
   '/trivia/draft_organization',
-  '/trivia/player_from_organization',
   '/trivia/jersey_player',
   '/trivia/jersey_number',
   '/trivia/career_jerseys',
@@ -47,6 +46,8 @@ let timerInterval = null;
 let questionLocked = false;
 let gameInProgress = false;
 let currentAnswerHash = null;
+let currentChoiceHashes = new Map();
+let nextQuestionPromise = null;
 
 export function isGameInProgress() {
   return gameInProgress;
@@ -71,14 +72,39 @@ function shuffle(array) {
     .map(({ item }) => item);
 }
 
-// Matches the backend's hash_answer(): lowercased, trimmed, SHA-256 hex.
 async function hashAnswer(text) {
   const normalized = text.trim().toLowerCase();
   const data = new TextEncoder().encode(normalized);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+
+  const hashBuffer = await crypto.subtle.digest(
+    'SHA-256',
+    data
+  );
+
   return Array.from(new Uint8Array(hashBuffer))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+async function fetchQuestion() {
+  const endpoint =
+    questionEndpoints[
+      Math.floor(Math.random() * questionEndpoints.length)
+    ];
+
+  const response = await fetch(`${API_BASE}${endpoint}`);
+
+  if (!response.ok) {
+    throw new Error(`Request failed (${response.status})`);
+  }
+
+  const data = await response.json();
+
+  if (data.error) {
+    throw new Error(data.error);
+  }
+
+  return data;
 }
 
 export function startGame() {
@@ -86,158 +112,319 @@ export function startGame() {
   questionsAnswered = 0;
   correctCount = 0;
   gameInProgress = true;
+  currentAnswerHash = null;
+  currentChoiceHashes = new Map();
+  nextQuestionPromise = null;
+
   showScreen('trivia');
-  triviaPanel.innerHTML = '<p class="trivia-loading">Loading question…</p>';
+
+  triviaPanel.innerHTML =
+    '<p class="trivia-loading">Loading question…</p>';
+
   askNextQuestion();
 }
 
-function askNextQuestion() {
+async function askNextQuestion() {
   questionNumber += 1;
-  loadQuestion();
-}
-
-async function loadQuestion() {
-  const endpoint = questionEndpoints[Math.floor(Math.random() * questionEndpoints.length)];
 
   try {
-    const response = await fetch(`${API_BASE}${endpoint}`);
-    if (!response.ok) {
-      throw new Error(`Request failed (${response.status})`);
+    let data;
+
+    if (nextQuestionPromise) {
+      data = await nextQuestionPromise;
+      nextQuestionPromise = null;
+    } else {
+      data = await fetchQuestion();
     }
-    const data = await response.json();
-    if (data.error) {
-      triviaPanel.innerHTML = `<p class="trivia-loading">${data.error}</p>`;
-      return;
-    }
+
     renderQuestion(data);
+
+    preloadNextQuestion();
+
   } catch (err) {
+    nextQuestionPromise = null;
+
     triviaPanel.innerHTML =
       `<p class="trivia-loading">Couldn't reach the backend: ${err.message}</p>`;
   }
 }
 
-function renderQuestion(data) {
+function preloadNextQuestion() {
+  if (questionNumber >= TOTAL_QUESTIONS) {
+    nextQuestionPromise = null;
+    return;
+  }
+
+  nextQuestionPromise = fetchQuestion().catch(error => {
+    nextQuestionPromise = null;
+    throw error;
+  });
+}
+
+async function renderQuestion(data) {
   currentAnswerHash = data.answer_hash;
 
-  const dotColor = questionTypeColors[data.question_type] || '#9C9284';
+  const dotColor =
+    questionTypeColors[data.question_type] || '#9C9284';
+
   const choices = shuffle(data.choices);
+
+  currentChoiceHashes = new Map();
+
+  const hashResults = await Promise.all(
+    choices.map(async choice => {
+      const hash = await hashAnswer(choice);
+      return [choice, hash];
+    })
+  );
+
+  currentChoiceHashes = new Map(hashResults);
 
   const badgeRow = `
     <div class="question-type-row">
       <div class="question-type-left">
-        <span class="question-type-dot" style="background:${dotColor}"></span>
-        <span class="question-type-label">${data.question_type}</span>
+        <span
+          class="question-type-dot"
+          style="background:${dotColor}"
+        ></span>
+        <span class="question-type-label">
+          ${data.question_type}
+        </span>
       </div>
-      <span class="progress-label">Question ${questionNumber} of ${TOTAL_QUESTIONS}</span>
+
+      <span class="progress-label">
+        Question ${questionNumber} of ${TOTAL_QUESTIONS}
+      </span>
     </div>
+
     <div class="timer-row">
-      <div class="timer-track"><div class="timer-fill" id="timer-fill"></div></div>
-      <span class="timer-value" id="timer-value">${QUESTION_TIME_LIMIT}</span>
+      <div class="timer-track">
+        <div class="timer-fill" id="timer-fill"></div>
+      </div>
+
+      <span class="timer-value" id="timer-value">
+        ${QUESTION_TIME_LIMIT}
+      </span>
     </div>
   `;
 
   if (data.path) {
     triviaPanel.innerHTML = `
       ${badgeRow}
+
       <div class="path-layout">
         <div class="path-list">
           ${data.path.map((stop, i) => `
-            <div class="path-row ${i === data.hidden_index ? 'path-row-hidden' : ''}">
-              <span class="path-team">${stop.team}</span>
-              <span class="path-season">${
-                stop.start_season === stop.end_season
-                  ? stop.start_season
-                  : `${stop.start_season} to ${stop.end_season}`
-              }</span>
+            <div class="path-row ${
+              i === data.hidden_index
+                ? 'path-row-hidden'
+                : ''
+            }">
+              <span class="path-team">
+                ${stop.team}
+              </span>
+
+              <span class="path-season">
+                ${
+                  stop.start_season === stop.end_season
+                    ? stop.start_season
+                    : `${stop.start_season} to ${stop.end_season}`
+                }
+              </span>
             </div>
           `).join('')}
         </div>
+
         <div class="path-side">
-          <p class="question-text">${data.question}</p>
+          <p class="question-text">
+            ${data.question}
+          </p>
+
           <div class="choices-grid" id="choices-grid"></div>
-          <p class="trivia-feedback" id="trivia-feedback"></p>
+
+          <p
+            class="trivia-feedback"
+            id="trivia-feedback"
+          ></p>
         </div>
       </div>
     `;
   } else if (data.staff) {
     triviaPanel.innerHTML = `
       ${badgeRow}
+
       <div class="path-layout">
         <div class="path-list">
           ${data.staff.map(coach => `
             <div class="path-row">
-              <span class="path-team">${coach.coach_name}</span>
-              <span class="path-season">${coach.coach_type}</span>
+              <span class="path-team">
+                ${coach.coach_name}
+              </span>
+
+              <span class="path-season">
+                ${coach.coach_type}
+              </span>
             </div>
           `).join('')}
         </div>
+
         <div class="path-side">
-          <p class="question-text">${data.question}</p>
+          <p class="question-text">
+            ${data.question}
+          </p>
+
           <div class="choices-grid" id="choices-grid"></div>
-          <p class="trivia-feedback" id="trivia-feedback"></p>
+
+          <p
+            class="trivia-feedback"
+            id="trivia-feedback"
+          ></p>
         </div>
       </div>
     `;
   } else if (data.resume) {
     triviaPanel.innerHTML = `
       ${badgeRow}
+
       <div class="path-layout">
         <div class="path-list resume-wide">
           ${data.resume.map(item => `
             <div class="path-row">
-              <span class="resume-text">${item}</span>
+              <span class="resume-text">
+                ${item}
+              </span>
             </div>
           `).join('')}
         </div>
+
         <div class="path-side">
-          <p class="question-text">${data.question}</p>
+          <p class="question-text">
+            ${data.question}
+          </p>
+
           <div class="choices-grid" id="choices-grid"></div>
-          <p class="trivia-feedback" id="trivia-feedback"></p>
+
+          <p
+            class="trivia-feedback"
+            id="trivia-feedback"
+          ></p>
         </div>
       </div>
     `;
   } else if (data.stats) {
-    const hideStat = (key) => data.hidden_stat === key;
+    const hideStat = key =>
+      data.hidden_stat === key;
+
     const statValue = data.stats;
 
     const statCells = [
-      { key: 'ppg', label: 'PPG', value: statValue.ppg },
-      { key: 'rpg', label: 'RPG', value: statValue.rpg },
-      { key: 'apg', label: 'APG', value: statValue.apg },
-      { key: 'spg', label: 'SPG', value: statValue.spg },
-      { key: 'bpg', label: 'BPG', value: statValue.bpg },
-    ].filter(cell => cell.value !== null && cell.value !== undefined);
+      {
+        key: 'ppg',
+        label: 'PPG',
+        value: statValue.ppg
+      },
+      {
+        key: 'rpg',
+        label: 'RPG',
+        value: statValue.rpg
+      },
+      {
+        key: 'apg',
+        label: 'APG',
+        value: statValue.apg
+      },
+      {
+        key: 'spg',
+        label: 'SPG',
+        value: statValue.spg
+      },
+      {
+        key: 'bpg',
+        label: 'BPG',
+        value: statValue.bpg
+      },
+    ].filter(
+      cell =>
+        cell.value !== null &&
+        cell.value !== undefined
+    );
 
     triviaPanel.innerHTML = `
       ${badgeRow}
-      <div class="stat-grid" style="grid-template-columns: repeat(${statCells.length}, 1fr);">
+
+      <div
+        class="stat-grid"
+        style="
+          grid-template-columns:
+          repeat(${statCells.length}, 1fr);
+        "
+      >
         ${statCells.map(cell => `
           <div class="stat-cell">
-            <div class="stat-value">${hideStat(cell.key) ? '?' : cell.value}</div>
-            <div class="stat-label">${cell.label}</div>
+            <div class="stat-value">
+              ${
+                hideStat(cell.key)
+                  ? '?'
+                  : cell.value
+              }
+            </div>
+
+            <div class="stat-label">
+              ${cell.label}
+            </div>
           </div>
         `).join('')}
       </div>
-      <p class="question-text">${data.question}</p>
-      <div class="choices-grid" id="choices-grid"></div>
-      <p class="trivia-feedback" id="trivia-feedback"></p>
+
+      <p class="question-text">
+        ${data.question}
+      </p>
+
+      <div
+        class="choices-grid"
+        id="choices-grid"
+      ></div>
+
+      <p
+        class="trivia-feedback"
+        id="trivia-feedback"
+      ></p>
     `;
   } else {
     triviaPanel.innerHTML = `
       ${badgeRow}
-      <p class="question-text">${data.question}</p>
-      <div class="choices-grid" id="choices-grid"></div>
-      <p class="trivia-feedback" id="trivia-feedback"></p>
+
+      <p class="question-text">
+        ${data.question}
+      </p>
+
+      <div
+        class="choices-grid"
+        id="choices-grid"
+      ></div>
+
+      <p
+        class="trivia-feedback"
+        id="trivia-feedback"
+      ></p>
     `;
   }
 
-  const choicesGrid = document.getElementById('choices-grid');
+  const choicesGrid =
+    document.getElementById('choices-grid');
 
   choices.forEach(choice => {
-    const btn = document.createElement('button');
+    const btn =
+      document.createElement('button');
+
     btn.className = 'choice-btn';
     btn.textContent = choice;
-    btn.addEventListener('click', () => submitGuess(choice));
+
+    btn.addEventListener(
+      'click',
+      () => submitGuess(choice)
+    );
+
     choicesGrid.appendChild(btn);
   });
 
@@ -246,22 +433,41 @@ function renderQuestion(data) {
 
 function startTimer() {
   questionLocked = false;
+
   clearInterval(timerInterval);
 
   const startTime = Date.now();
-  const fillEl = document.getElementById('timer-fill');
-  const valueEl = document.getElementById('timer-value');
+
+  const fillEl =
+    document.getElementById('timer-fill');
+
+  const valueEl =
+    document.getElementById('timer-value');
 
   timerInterval = setInterval(() => {
-    const elapsed = (Date.now() - startTime) / 1000;
-    const remaining = Math.max(0, QUESTION_TIME_LIMIT - elapsed);
+    const elapsed =
+      (Date.now() - startTime) / 1000;
 
-    fillEl.style.width = `${(remaining / QUESTION_TIME_LIMIT) * 100}%`;
-    valueEl.textContent = Math.ceil(remaining);
-    fillEl.classList.toggle('urgent', remaining <= 5);
+    const remaining =
+      Math.max(
+        0,
+        QUESTION_TIME_LIMIT - elapsed
+      );
+
+    fillEl.style.width =
+      `${(remaining / QUESTION_TIME_LIMIT) * 100}%`;
+
+    valueEl.textContent =
+      Math.ceil(remaining);
+
+    fillEl.classList.toggle(
+      'urgent',
+      remaining <= 5
+    );
 
     if (remaining <= 0) {
       clearInterval(timerInterval);
+
       if (!questionLocked) {
         submitGuess('', true);
       }
@@ -269,84 +475,161 @@ function startTimer() {
   }, TIMER_TICK_MS);
 }
 
-// No fetch here at all - the hash comparison is instant and entirely local.
-async function submitGuess(guess, timedOut = false) {
+async function submitGuess(
+  guess,
+  timedOut = false
+) {
   if (questionLocked) return;
+
   questionLocked = true;
+
   clearInterval(timerInterval);
 
-  const buttons = document.querySelectorAll('.choice-btn');
-  buttons.forEach(btn => { btn.disabled = true; });
+  const buttons =
+    document.querySelectorAll('.choice-btn');
 
-  const guessHash = guess ? await hashAnswer(guess) : null;
-  const correct = guessHash === currentAnswerHash;
+  buttons.forEach(btn => {
+    btn.disabled = true;
+  });
 
-  if (correct) correctCount += 1;
+  const guessHash =
+    guess
+      ? currentChoiceHashes.get(guess)
+      : null;
+
+  const correct =
+    guessHash === currentAnswerHash;
+
+  if (correct) {
+    correctCount += 1;
+  }
+
   questionsAnswered += 1;
 
-  const correctBtn = [...buttons].find(async btn => (await hashAnswer(btn.textContent)) === currentAnswerHash);
-  // Fallback: find the correct button by re-hashing each choice, since
-  // we only have the hash, not the plaintext answer, until now.
+  let correctText = '';
+
   for (const btn of buttons) {
-    const btnHash = await hashAnswer(btn.textContent);
-    if (btnHash === currentAnswerHash) {
+    const choiceHash =
+      currentChoiceHashes.get(btn.textContent);
+
+    if (choiceHash === currentAnswerHash) {
       btn.classList.add('correct');
-    } else if (btn.textContent === guess) {
+      correctText = btn.textContent;
+    } else if (
+      btn.textContent === guess &&
+      !correct
+    ) {
       btn.classList.add('incorrect');
     }
   }
 
-  const feedback = document.getElementById('trivia-feedback');
-  const correctText = [...buttons].find(b => b.classList.contains('correct'))?.textContent || '';
-  feedback.textContent = correct
-    ? 'Correct!'
-    : timedOut
-      ? `Time's up — it was ${correctText}.`
-      : `Not quite — it was ${correctText}.`;
-  feedback.classList.add(correct ? 'correct' : 'incorrect');
+  const feedback =
+    document.getElementById(
+      'trivia-feedback'
+    );
 
-  const isLastQuestion = questionNumber >= TOTAL_QUESTIONS;
+  feedback.textContent =
+    correct
+      ? 'Correct!'
+      : timedOut
+        ? `Time's up — it was ${correctText}.`
+        : `Not quite — it was ${correctText}.`;
 
-  const advanceBtn = document.createElement('button');
+  feedback.classList.add(
+    correct
+      ? 'correct'
+      : 'incorrect'
+  );
+
+  const isLastQuestion =
+    questionNumber >= TOTAL_QUESTIONS;
+
+  const advanceBtn =
+    document.createElement('button');
+
   advanceBtn.className = 'next-btn';
-  advanceBtn.textContent = isLastQuestion ? 'See Results' : 'Next Question';
-  advanceBtn.addEventListener('click', isLastQuestion ? showResults : askNextQuestion);
-  triviaPanel.appendChild(advanceBtn);
+
+  advanceBtn.textContent =
+    isLastQuestion
+      ? 'See Results'
+      : 'Next Question';
+
+  advanceBtn.addEventListener(
+    'click',
+    isLastQuestion
+      ? showResults
+      : askNextQuestion
+  );
+
+  triviaPanel.appendChild(
+    advanceBtn
+  );
 }
 
 function showResults() {
   gameInProgress = false;
 
   triviaPanel.innerHTML = `
-    <h2 class="screen-heading">Results</h2>
-    <p class="results-score">${correctCount} / ${TOTAL_QUESTIONS}</p>
-    <p class="trivia-desc-static">You got ${correctCount} out of ${TOTAL_QUESTIONS} correct.</p>
-    <button class="next-btn" id="play-again-btn">Play Again</button>
+    <h2 class="screen-heading">
+      Results
+    </h2>
+
+    <p class="results-score">
+      ${correctCount} / ${TOTAL_QUESTIONS}
+    </p>
+
+    <p class="trivia-desc-static">
+      You got ${correctCount}
+      out of ${TOTAL_QUESTIONS} correct.
+    </p>
+
+    <button
+      class="next-btn"
+      id="play-again-btn"
+    >
+      Play Again
+    </button>
   `;
 
-  document.getElementById('play-again-btn').addEventListener('click', startGame);
+  document
+    .getElementById('play-again-btn')
+    .addEventListener(
+      'click',
+      startGame
+    );
 
   recordGameResult();
 }
 
-export async function recordGameResult(totalQuestions = TOTAL_QUESTIONS) {
+export async function recordGameResult(
+  totalQuestions = TOTAL_QUESTIONS
+) {
   const token = getToken();
+
   if (!token) return;
 
   try {
-    await fetch(`${API_BASE}/games/record`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        score: correctCount,
-        total_questions: totalQuestions,
-        game_mode: 'nba_trivia',
-      }),
-    });
+    await fetch(
+      `${API_BASE}/games/record`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type':
+            'application/json',
+          'Authorization':
+            `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          score: correctCount,
+          total_questions: totalQuestions,
+          game_mode: 'nba_trivia',
+        }),
+      }
+    );
   } catch (err) {
-    console.error('Could not record game result:', err);
+    console.error(
+      'Could not record game result:',
+      err
+    );
   }
 }
