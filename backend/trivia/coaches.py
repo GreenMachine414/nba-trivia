@@ -4,7 +4,6 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from data.database import db
-
 from .engine import build_question_base, register_answer, hash_answer
 
 router = APIRouter()
@@ -36,81 +35,65 @@ class HeadCoachQuestion(BaseModel):
 
 @router.get("/trivia/coaching_staff", response_model=CoachingStaffQuestion)
 def guess_coaching_staff():
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                tc.team_id,
+                tc.season_id,
+                s.season_name,
+                f.abbreviation
+            FROM team_coach tc
+            JOIN season s
+                ON s.season_id = tc.season_id
+            JOIN franchise f
+                ON f.team_id = tc.team_id
+            GROUP BY
+                tc.team_id,
+                tc.season_id,
+                s.season_name,
+                f.abbreviation
+            HAVING COUNT(*) >= 2
+            ORDER BY RANDOM()
+            LIMIT 1
+        """)
 
-    db.ensure_connected()
-    cursor = db.connection.cursor()
+        row = cursor.fetchone()
 
-    cursor.execute("""
-        SELECT
-            tc.team_id,
-            tc.season_id,
-            s.season_name,
-            f.abbreviation
-        FROM team_coach tc
-        JOIN season s
-            ON s.season_id = tc.season_id
-        JOIN franchise f
-            ON f.team_id = tc.team_id
-        GROUP BY
-            tc.team_id,
-            tc.season_id,
-            s.season_name,
-            f.abbreviation
-        HAVING COUNT(*) >= 2
-        ORDER BY RANDOM()
-        LIMIT 1
-    """)
+        if row is None:
+            return {
+                "error": "no eligible coaching staffs found"
+            }
 
-    row = cursor.fetchone()
+        team_id, season_id, season_name, correct_team = row
 
-    if row is None:
-        cursor.close()
-        return {
-            "error":
-                "no eligible coaching staffs found"
-        }
+        cursor.execute("""
+            SELECT
+                c.full_name,
+                tc.coach_type
+            FROM team_coach tc
+            JOIN coach c
+                ON c.coach_id = tc.coach_id
+            WHERE
+                tc.team_id = %s
+                AND tc.season_id = %s
+            ORDER BY tc.sort_sequence
+        """, (team_id, season_id))
 
-    (
-        team_id,
-        season_id,
-        season_name,
-        correct_team
-    ) = row
+        staff_rows = cursor.fetchall()
 
-    cursor.execute("""
-        SELECT
-            c.full_name,
-            tc.coach_type
-        FROM team_coach tc
-        JOIN coach c
-            ON c.coach_id = tc.coach_id
-        WHERE
-            tc.team_id = %s
-            AND tc.season_id = %s
-        ORDER BY tc.sort_sequence
-    """, (
-        team_id,
-        season_id
-    ))
+        cursor.execute("""
+            SELECT abbreviation
+            FROM franchise
+            WHERE team_id != %s
+            ORDER BY RANDOM()
+            LIMIT 3
+        """, (team_id,))
 
-    staff_rows = cursor.fetchall()
-
-    cursor.execute("""
-        SELECT abbreviation
-        FROM franchise
-        WHERE team_id != %s
-        ORDER BY RANDOM()
-        LIMIT 3
-    """, (team_id,))
-
-    wrong_teams = [r[0] for r in cursor.fetchall()]
-
-    cursor.close()
+        wrong_teams = [r[0] for r in cursor.fetchall()]
 
     if len(wrong_teams) < 3:
         return {
-            "error":
-                "not enough teams for choices"
+            "error": "not enough teams for choices"
         }
 
     staff = [
@@ -126,13 +109,9 @@ def guess_coaching_staff():
         f"in the {season_name} season?"
     )
 
-    choices = [
-        correct_team
-    ] + wrong_teams
+    choices = [correct_team] + wrong_teams
 
-    question_id = register_answer(
-        correct_team
-    )
+    question_id = register_answer(correct_team)
 
     return CoachingStaffQuestion(
         question_id=question_id,
@@ -140,40 +119,36 @@ def guess_coaching_staff():
         question=question,
         staff=staff,
         choices=choices,
-        answer_hash=hash_answer(
-            correct_team
-        ),
+        answer_hash=hash_answer(correct_team),
     )
 
 
 @router.get("/trivia/head_coach", response_model=HeadCoachQuestion)
 def guess_head_coach():
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                c.full_name,
+                s.season_name,
+                f.abbreviation
+            FROM team_coach tc
+            JOIN coach c
+                ON c.coach_id = tc.coach_id
+            JOIN season s
+                ON s.season_id = tc.season_id
+            JOIN franchise f
+                ON f.team_id = tc.team_id
+            WHERE tc.coach_type = 'Head Coach'
+            ORDER BY RANDOM()
+            LIMIT 1
+        """)
 
-    db.ensure_connected()
-    cursor = db.connection.cursor()
-
-    cursor.execute("""
-        SELECT
-            c.full_name,
-            s.season_name,
-            f.abbreviation
-        FROM team_coach tc
-        JOIN coach c
-            ON c.coach_id = tc.coach_id
-        JOIN season s
-            ON s.season_id = tc.season_id
-        JOIN franchise f
-            ON f.team_id = tc.team_id
-        WHERE tc.coach_type = 'Head Coach'
-        ORDER BY RANDOM()
-        LIMIT 1
-    """)
-
-    row = cursor.fetchone()
-    cursor.close()
+        row = cursor.fetchone()
 
     if row is None:
-        return {"error": "no head coach data found"}
+        return {
+            "error": "no head coach data found"
+        }
 
     coach_name, season, team = row
 

@@ -4,7 +4,6 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from data.database import db
-
 from .engine import build_question_base, register_answer, hash_answer
 
 router = APIRouter()
@@ -48,7 +47,6 @@ class TeamCountQuestion(BaseModel):
 
 
 def fetch_random_eligible_player(cursor):
-
     cursor.execute("""
         SELECT
             r.player_id,
@@ -68,7 +66,6 @@ def fetch_random_eligible_player(cursor):
 
 
 def fetch_career_path(cursor, player_id: int) -> list[PathStop]:
-
     cursor.execute("""
         SELECT
             s.season_name,
@@ -87,7 +84,6 @@ def fetch_career_path(cursor, player_id: int) -> list[PathStop]:
     path: list[PathStop] = []
 
     for season, team in rows:
-
         if path and path[-1].team == team:
             path[-1].end_season = season
         else:
@@ -104,23 +100,17 @@ def fetch_career_path(cursor, player_id: int) -> list[PathStop]:
 
 @router.get("/trivia/career_path", response_model=PathTriviaQuestion)
 def guess_career_path():
+    with db.cursor() as cursor:
+        row = fetch_random_eligible_player(cursor)
 
-    db.ensure_connected()
-    cursor = db.connection.cursor()
+        if row is None:
+            return {"error": "no eligible players found"}
 
-    row = fetch_random_eligible_player(cursor)
+        player_id, player_name = row
+        path = fetch_career_path(cursor, player_id)
 
-    if row is None:
-        cursor.close()
-        return {"error": "no eligible players found"}
-
-    player_id, player_name = row
-    path = fetch_career_path(cursor, player_id)
-
-    cursor.close()
-
-    if not path:
-        return {"error": "no career path found"}
+        if not path:
+            return {"error": "no career path found"}
 
     question = "Which player had this career path?"
 
@@ -138,37 +128,30 @@ def guess_career_path():
 
 @router.get("/trivia/missing_stop", response_model=MissingStopQuestion)
 def guess_missing_stop():
+    with db.cursor() as cursor:
+        row = fetch_random_eligible_player(cursor)
 
-    db.ensure_connected()
-    cursor = db.connection.cursor()
+        if row is None:
+            return {"error": "no eligible players found"}
 
-    row = fetch_random_eligible_player(cursor)
+        player_id, player_name = row
+        path = fetch_career_path(cursor, player_id)
 
-    if row is None:
-        cursor.close()
-        return {"error": "no eligible players found"}
+        if not path:
+            return {"error": "no career path found"}
 
-    player_id, player_name = row
-    path = fetch_career_path(cursor, player_id)
+        hidden_index = random.randint(0, len(path) - 1)
+        correct_team = path[hidden_index].team
 
-    if not path:
-        cursor.close()
-        return {"error": "no career path found"}
+        cursor.execute("""
+            SELECT abbreviation
+            FROM franchise
+            WHERE abbreviation != %s
+            ORDER BY RANDOM()
+            LIMIT 3
+        """, (correct_team,))
 
-    hidden_index = random.randint(0, len(path) - 1)
-    correct_team = path[hidden_index].team
-
-    cursor.execute("""
-        SELECT abbreviation
-        FROM franchise
-        WHERE abbreviation != %s
-        ORDER BY RANDOM()
-        LIMIT 3
-    """, (correct_team,))
-
-    wrong_teams = [r[0] for r in cursor.fetchall()]
-
-    cursor.close()
+        wrong_teams = [r[0] for r in cursor.fetchall()]
 
     if len(wrong_teams) < 3:
         return {"error": "not enough teams for choices"}
@@ -206,23 +189,17 @@ def guess_missing_stop():
 
 @router.get("/trivia/team_count", response_model=TeamCountQuestion)
 def guess_team_count():
+    with db.cursor() as cursor:
+        row = fetch_random_eligible_player(cursor)
 
-    db.ensure_connected()
-    cursor = db.connection.cursor()
+        if row is None:
+            return {"error": "no eligible players found"}
 
-    row = fetch_random_eligible_player(cursor)
+        player_id, player_name = row
+        path = fetch_career_path(cursor, player_id)
 
-    if row is None:
-        cursor.close()
-        return {"error": "no eligible players found"}
-
-    player_id, player_name = row
-    path = fetch_career_path(cursor, player_id)
-
-    cursor.close()
-
-    if not path:
-        return {"error": "no career path found"}
+        if not path:
+            return {"error": "no career path found"}
 
     correct_count = len(path)
 

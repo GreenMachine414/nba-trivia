@@ -1,9 +1,7 @@
 import secrets
-
 import bcrypt
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
-
 from data.database import db
 
 router = APIRouter()
@@ -34,23 +32,22 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def create_session(user_id: int) -> str:
     token = secrets.token_urlsafe(32)
-    db.ensure_connected()
-    cursor = db.connection.cursor()
-    cursor.execute(
-        "INSERT INTO sessions (token, user_id) VALUES (%s, %s)",
-        (token, user_id),
-    )
-    db.connection.commit()
-    cursor.close()
+
+    with db.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO sessions (token, user_id) VALUES (%s, %s)",
+            (token, user_id),
+        )
+
     return token
 
 
 def delete_session(token: str) -> None:
-    db.ensure_connected()
-    cursor = db.connection.cursor()
-    cursor.execute("DELETE FROM sessions WHERE token = %s", (token,))
-    db.connection.commit()
-    cursor.close()
+    with db.cursor() as cursor:
+        cursor.execute(
+            "DELETE FROM sessions WHERE token = %s",
+            (token,),
+        )
 
 
 def get_current_user(authorization: str = Header(default="")) -> int:
@@ -59,40 +56,51 @@ def get_current_user(authorization: str = Header(default="")) -> int:
 
     token = authorization.removeprefix("Bearer ")
 
-    db.ensure_connected()
-    cursor = db.connection.cursor()
-    cursor.execute("""
-        SELECT user_id FROM sessions
-        WHERE token = %s AND created_at > NOW() - INTERVAL '30 days'
-    """, (token,))
-    row = cursor.fetchone()
-    cursor.close()
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT user_id
+            FROM sessions
+            WHERE token = %s
+              AND created_at > NOW() - INTERVAL '30 days'
+        """, (token,))
+
+        row = cursor.fetchone()
 
     if row is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired session")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired session"
+        )
 
     return row[0]
 
 
 @router.post("/auth/signup", response_model=AuthResponse)
 def signup(body: SignupRequest):
-    db.ensure_connected()
-    cursor = db.connection.cursor()
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT id FROM users WHERE username = %s",
+            (body.username,),
+        )
 
-    cursor.execute("SELECT id FROM users WHERE username = %s", (body.username,))
-    if cursor.fetchone() is not None:
-        cursor.close()
-        raise HTTPException(status_code=400, detail="Username already taken")
+        if cursor.fetchone() is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Username already taken"
+            )
 
-    password_hash = hash_password(body.password)
+        password_hash = hash_password(body.password)
 
-    cursor.execute(
-        "INSERT INTO users (username, password_hash) VALUES (%s, %s) RETURNING id",
-        (body.username, password_hash),
-    )
-    user_id = cursor.fetchone()[0]
-    db.connection.commit()
-    cursor.close()
+        cursor.execute(
+            """
+            INSERT INTO users (username, password_hash)
+            VALUES (%s, %s)
+            RETURNING id
+            """,
+            (body.username, password_hash),
+        )
+
+        user_id = cursor.fetchone()[0]
 
     token = create_session(user_id)
 
@@ -101,18 +109,19 @@ def signup(body: SignupRequest):
 
 @router.post("/auth/login", response_model=AuthResponse)
 def login(body: LoginRequest):
-    db.ensure_connected()
-    cursor = db.connection.cursor()
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT id, password_hash FROM users WHERE username = %s",
+            (body.username,),
+        )
 
-    cursor.execute(
-        "SELECT id, password_hash FROM users WHERE username = %s",
-        (body.username,),
-    )
-    row = cursor.fetchone()
-    cursor.close()
+        row = cursor.fetchone()
 
     if row is None or not verify_password(body.password, row[1]):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username or password"
+        )
 
     user_id, _ = row
     token = create_session(user_id)
@@ -125,4 +134,5 @@ def logout(authorization: str = Header(default="")):
     if authorization.startswith("Bearer "):
         token = authorization.removeprefix("Bearer ")
         delete_session(token)
+
     return {"status": "logged out"}

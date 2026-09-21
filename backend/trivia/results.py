@@ -34,69 +34,91 @@ class Leaderboard(BaseModel):
 
 @router.get("/users/me/stats", response_model=UserStats)
 def get_my_stats(user_id: int = Depends(get_current_user)):
-    db.ensure_connected()
-    cursor = db.connection.cursor()
+    with db.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT COUNT(*), AVG(score)
+            FROM trivia_game_results
+            WHERE user_id = %s
+            """,
+            (user_id,),
+        )
 
-    cursor.execute(
-        "SELECT COUNT(*), AVG(score) FROM trivia_game_results WHERE user_id = %s",
-        (user_id,),
-    )
-    games_played, average_score = cursor.fetchone()
-    cursor.close()
+        games_played, average_score = cursor.fetchone()
 
     return UserStats(
         games_played=games_played,
-        average_score=round(float(average_score), 1) if average_score is not None else None,
+        average_score=(
+            round(float(average_score), 1)
+            if average_score is not None
+            else None
+        ),
     )
 
 
 @router.post("/games/record")
-def record_game(body: GameResult, user_id: int = Depends(get_current_user)):
-    db.ensure_connected()
-    cursor = db.connection.cursor()
-
-    cursor.execute(
-        "INSERT INTO trivia_game_results (user_id, score, total_questions) VALUES (%s, %s, %s)",
-        (user_id, body.score, body.total_questions),
-    )
-    db.connection.commit()
-    cursor.close()
+def record_game(
+    body: GameResult,
+    user_id: int = Depends(get_current_user)
+):
+    with db.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO trivia_game_results (
+                user_id,
+                score,
+                total_questions
+            )
+            VALUES (%s, %s, %s)
+            """,
+            (user_id, body.score, body.total_questions),
+        )
 
     return {"status": "recorded"}
 
 
 @router.get("/leaderboard/nba_trivia", response_model=Leaderboard)
 def get_nba_trivia_leaderboard():
-    db.ensure_connected()
-    cursor = db.connection.cursor()
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                u.username,
+                COUNT(*) AS games_played
+            FROM trivia_game_results gr
+            JOIN users u
+                ON u.id = gr.user_id
+            GROUP BY u.username
+            ORDER BY games_played DESC
+            LIMIT 10
+        """)
 
-    cursor.execute("""
-        SELECT u.username, COUNT(*) AS games_played
-        FROM trivia_game_results gr
-        JOIN users u ON u.id = gr.user_id
-        GROUP BY u.username
-        ORDER BY games_played DESC
-        LIMIT 10
-    """)
-    by_games_played = [
-        LeaderboardByGames(username=row[0], games_played=row[1])
-        for row in cursor.fetchall()
-    ]
+        by_games_played = [
+            LeaderboardByGames(
+                username=row[0],
+                games_played=row[1]
+            )
+            for row in cursor.fetchall()
+        ]
 
-    cursor.execute("""
-        SELECT u.username, AVG(gr.score) AS average_score
-        FROM trivia_game_results gr
-        JOIN users u ON u.id = gr.user_id
-        GROUP BY u.username
-        ORDER BY average_score DESC
-        LIMIT 10
-    """)
-    by_average_score = [
-        LeaderboardByScore(username=row[0], average_score=round(float(row[1]), 1))
-        for row in cursor.fetchall()
-    ]
+        cursor.execute("""
+            SELECT
+                u.username,
+                AVG(gr.score) AS average_score
+            FROM trivia_game_results gr
+            JOIN users u
+                ON u.id = gr.user_id
+            GROUP BY u.username
+            ORDER BY average_score DESC
+            LIMIT 10
+        """)
 
-    cursor.close()
+        by_average_score = [
+            LeaderboardByScore(
+                username=row[0],
+                average_score=round(float(row[1]), 1)
+            )
+            for row in cursor.fetchall()
+        ]
 
     return Leaderboard(
         by_games_played=by_games_played,

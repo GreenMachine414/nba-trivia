@@ -4,7 +4,6 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from data.database import db
-
 from .engine import build_question_base, register_answer, hash_answer
 
 router = APIRouter()
@@ -74,7 +73,6 @@ def build_numeric_choices(
     spread: int = 5,
     min_value: int = 1
 ) -> list[str]:
-
     wrong_values = set()
 
     while len(wrong_values) < 3:
@@ -93,12 +91,8 @@ def build_numeric_choices(
 
 @router.get("/trivia/draft_player", response_model=DraftPlayerQuestion)
 def guess_drafted_player():
-
-    db.ensure_connected()
-    cursor = db.connection.cursor()
-
-    row = fetch_random_draft_row(cursor)
-    cursor.close()
+    with db.cursor() as cursor:
+        row = fetch_random_draft_row(cursor)
 
     if row is None:
         return {"error": "no draft history found"}
@@ -131,12 +125,8 @@ def guess_drafted_player():
 
 @router.get("/trivia/overall_pick", response_model=OverallPickQuestion)
 def guess_overall_pick():
-
-    db.ensure_connected()
-    cursor = db.connection.cursor()
-
-    row = fetch_random_draft_row(cursor)
-    cursor.close()
+    with db.cursor() as cursor:
+        row = fetch_random_draft_row(cursor)
 
     if row is None:
         return {"error": "no draft history found"}
@@ -175,39 +165,34 @@ def guess_overall_pick():
 
 @router.get("/trivia/draft_organization", response_model=OrganizationQuestion)
 def guess_organization():
+    with db.cursor() as cursor:
+        row = fetch_random_draft_row(cursor)
 
-    db.ensure_connected()
-    cursor = db.connection.cursor()
+        if row is None:
+            return {"error": "no draft history found"}
 
-    row = fetch_random_draft_row(cursor)
+        (
+            player_id,
+            player_name,
+            season,
+            round_number,
+            pick_number,
+            overall_pick,
+            organization
+        ) = row
 
-    if row is None:
-        cursor.close()
-        return {"error": "no draft history found"}
+        cursor.execute("""
+            SELECT organization
+            FROM draft
+            WHERE
+                organization IS NOT NULL
+                AND organization != %s
+            GROUP BY organization
+            ORDER BY RANDOM()
+            LIMIT 3
+        """, (organization,))
 
-    (
-        player_id,
-        player_name,
-        season,
-        round_number,
-        pick_number,
-        overall_pick,
-        organization
-    ) = row
-
-    cursor.execute("""
-        SELECT organization
-        FROM draft
-        WHERE
-            organization IS NOT NULL
-            AND organization != %s
-        GROUP BY organization
-        ORDER BY RANDOM()
-        LIMIT 3
-    """, (organization,))
-
-    wrong_orgs = [r[0] for r in cursor.fetchall()]
-    cursor.close()
+        wrong_orgs = [r[0] for r in cursor.fetchall()]
 
     question = (
         f"What organization was {player_name} selected from "

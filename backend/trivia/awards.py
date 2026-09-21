@@ -4,7 +4,6 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from data.database import db
-
 from .engine import build_question_base, hash_answer
 
 router = APIRouter()
@@ -40,30 +39,26 @@ class CareerResumeQuestion(BaseModel):
 
 @router.get("/trivia/award_winner", response_model=AwardWinnerQuestion)
 def guess_award_winner():
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                a.player_id,
+                p.name,
+                s.season_name,
+                a.award
+            FROM player_award a
+            JOIN player p
+                ON p.player_id = a.player_id
+            JOIN season s
+                ON s.season_id = a.season_id
+            WHERE
+                p.notice_flag = TRUE
+                AND a.award = ANY(%s)
+            ORDER BY RANDOM()
+            LIMIT 1
+        """, (SINGLE_WINNER_AWARDS,))
 
-    db.ensure_connected()
-    cursor = db.connection.cursor()
-
-    cursor.execute("""
-        SELECT
-            a.player_id,
-            p.name,
-            s.season_name,
-            a.award
-        FROM player_award a
-        JOIN player p
-            ON p.player_id = a.player_id
-        JOIN season s
-            ON s.season_id = a.season_id
-        WHERE
-            p.notice_flag = TRUE
-            AND a.award = ANY(%s)
-        ORDER BY RANDOM()
-        LIMIT 1
-    """, (SINGLE_WINNER_AWARDS,))
-
-    row = cursor.fetchone()
-    cursor.close()
+        row = cursor.fetchone()
 
     if row is None:
         return {"error": "no award data found"}
@@ -85,25 +80,22 @@ def guess_award_winner():
 
 @router.get("/trivia/career_resume", response_model=CareerResumeQuestion)
 def guess_career_resume():
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                a.player_id,
+                a.award,
+                COUNT(*) AS times_won
+            FROM player_award a
+            JOIN player p
+                ON p.player_id = a.player_id
+            WHERE p.notice_flag = TRUE
+            GROUP BY
+                a.player_id,
+                a.award
+        """)
 
-    db.ensure_connected()
-    cursor = db.connection.cursor()
-
-    cursor.execute("""
-        SELECT
-            a.player_id,
-            a.award,
-            COUNT(*) AS times_won
-        FROM player_award a
-        JOIN player p
-            ON p.player_id = a.player_id
-        WHERE p.notice_flag = TRUE
-        GROUP BY
-            a.player_id,
-            a.award
-    """)
-
-    rows = cursor.fetchall()
+        rows = cursor.fetchall()
 
     resumes: dict[int, list[tuple[str, int]]] = {}
 
@@ -115,13 +107,8 @@ def guess_career_resume():
     signature_to_players: dict[tuple, list[int]] = {}
 
     for player_id, entries in resumes.items():
-
         signature = tuple(sorted(entries))
-
-        signature_to_players.setdefault(
-            signature,
-            []
-        ).append(player_id)
+        signature_to_players.setdefault(signature, []).append(player_id)
 
     unique_signatures = [
         (signature, players[0])
@@ -130,19 +117,18 @@ def guess_career_resume():
     ]
 
     if not unique_signatures:
-        cursor.close()
         return {"error": "no eligible players found"}
 
     signature, player_id = random.choice(unique_signatures)
 
-    cursor.execute("""
-        SELECT name
-        FROM player
-        WHERE player_id = %s
-    """, (player_id,))
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT name
+            FROM player
+            WHERE player_id = %s
+        """, (player_id,))
 
-    name_row = cursor.fetchone()
-    cursor.close()
+        name_row = cursor.fetchone()
 
     if name_row is None:
         return {"error": "player not found"}
@@ -150,13 +136,8 @@ def guess_career_resume():
     player_name = name_row[0]
 
     resume_lines = [
-        f"{award} ({times_won}x)"
-        if times_won > 1
-        else award
-        for award, times_won in sorted(
-            signature,
-            key=lambda x: x[0]
-        )
+        f"{award} ({times_won}x)" if times_won > 1 else award
+        for award, times_won in sorted(signature, key=lambda x: x[0])
     ]
 
     question = "Which player has this exact career award resume?"

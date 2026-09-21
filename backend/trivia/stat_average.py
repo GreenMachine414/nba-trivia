@@ -4,7 +4,6 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from data.database import db
-
 from .engine import build_question_base, register_answer, hash_answer
 
 router = APIRouter()
@@ -58,31 +57,58 @@ class TeamGuessQuestion(BaseModel):
     answer_hash: str
 
 
-def build_numeric_choices(correct_value: float, spread: float = 3.0) -> list[str]:
+def build_numeric_choices(
+    correct_value: float,
+    spread: float = 3.0
+) -> list[str]:
     wrong_values = set()
+
     while len(wrong_values) < 3:
         offset = random.uniform(-spread, spread)
         candidate = round(correct_value + offset, 1)
+
         if candidate != correct_value and candidate >= 0:
             wrong_values.add(candidate)
 
-    choices = [str(correct_value)] + [str(v) for v in wrong_values]
+    choices = [str(correct_value)] + [
+        str(value)
+        for value in wrong_values
+    ]
 
     return choices
 
 
-def build_stat_line(games, points, rebounds, assists, steals, blocks) -> tuple[StatLine, list[tuple[float, str]]]:
+def build_stat_line(
+    games,
+    points,
+    rebounds,
+    assists,
+    steals,
+    blocks
+) -> tuple[StatLine, list[tuple[float, str]]]:
     ppg = round(points / games, 1)
     rpg = round(rebounds / games, 1)
     apg = round(assists / games, 1)
     spg = round(steals / games, 1) if steals is not None else None
     bpg = round(blocks / games, 1) if blocks is not None else None
 
-    stats = StatLine(ppg=ppg, rpg=rpg, apg=apg, spg=spg, bpg=bpg)
+    stats = StatLine(
+        ppg=ppg,
+        rpg=rpg,
+        apg=apg,
+        spg=spg,
+        bpg=bpg
+    )
 
-    parts = [(ppg, "PPG"), (rpg, "RPG"), (apg, "APG")]
+    parts = [
+        (ppg, "PPG"),
+        (rpg, "RPG"),
+        (apg, "APG")
+    ]
+
     if spg is not None:
         parts.append((spg, "SPG"))
+
     if bpg is not None:
         parts.append((bpg, "BPG"))
 
@@ -91,42 +117,48 @@ def build_stat_line(games, points, rebounds, assists, steals, blocks) -> tuple[S
 
 @router.get("/trivia/season_average", response_model=StatTriviaQuestion)
 def guess_season_average():
-    db.ensure_connected()
-    cursor = db.connection.cursor()
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                p.name,
+                season.season_name,
+                SUM(s.games_played) AS games,
+                SUM(s.pts) AS points,
+                SUM(s.reb) AS rebounds,
+                SUM(s.ast) AS assists,
+                SUM(s.stl) AS steals,
+                SUM(s.blk) AS blocks
+            FROM player_season s
+            JOIN player p
+                ON p.player_id = s.player_id
+            JOIN season
+                ON s.season_id = season.season_id
+            GROUP BY
+                season.season_name,
+                p.player_id,
+                p.name
+            HAVING
+                SUM(s.games_played) >= 20
+                AND SUM(s.pts)::DECIMAL / SUM(s.games_played) >= 5
+            ORDER BY RANDOM()
+            LIMIT 1
+        """)
 
-    cursor.execute("""
-        SELECT 
-            p.name,
-            season.season_name,
-            SUM(s.games_played) AS games,
-            SUM(s.pts) AS points,
-            SUM(s.reb) AS rebounds,
-            SUM(s.ast) AS assists,
-            SUM(s.stl) AS steals,
-            SUM(s.blk) AS blocks
-        FROM player_season s
-        JOIN player p 
-            ON p.player_id = s.player_id
-        JOIN season
-            ON s.season_id = season.season_id
-        GROUP BY
-            season.season_name,
-            p.player_id,
-            p.name
-        HAVING 
-            SUM(s.games_played) >= 20
-            AND SUM(s.pts)::DECIMAL / SUM(s.games_played) >= 5
-        ORDER BY RANDOM()
-        LIMIT 1;
-    """)
-
-    row = cursor.fetchone()
-    cursor.close()
+        row = cursor.fetchone()
 
     if row is None:
         return {"error": "no season stats found"}
 
-    player_name, season, games, points, rebounds, assists, steals, blocks = row
+    (
+        player_name,
+        season,
+        games,
+        points,
+        rebounds,
+        assists,
+        steals,
+        blocks
+    ) = row
 
     stats, parts = build_stat_line(
         games,
@@ -137,9 +169,15 @@ def guess_season_average():
         blocks
     )
 
-    parts_text = ", ".join(f"{value} {label}" for value, label in parts)
+    parts_text = ", ".join(
+        f"{value} {label}"
+        for value, label in parts
+    )
 
-    question = f"Who averaged {parts_text} in the {season} season?"
+    question = (
+        f"Who averaged {parts_text} "
+        f"in the {season} season?"
+    )
 
     question_id, choices = build_question_base(player_name)
 
@@ -155,42 +193,48 @@ def guess_season_average():
 
 @router.get("/trivia/missing_stat", response_model=MissingStatQuestion)
 def guess_missing_stat():
-    db.ensure_connected()
-    cursor = db.connection.cursor()
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                p.name,
+                season.season_name,
+                SUM(s.games_played) AS games,
+                SUM(s.pts) AS points,
+                SUM(s.reb) AS rebounds,
+                SUM(s.ast) AS assists,
+                SUM(s.stl) AS steals,
+                SUM(s.blk) AS blocks
+            FROM player_season s
+            JOIN player p
+                ON p.player_id = s.player_id
+            JOIN season
+                ON s.season_id = season.season_id
+            GROUP BY
+                season.season_name,
+                p.player_id,
+                p.name
+            HAVING
+                SUM(s.games_played) >= 20
+                AND SUM(s.pts)::DECIMAL / SUM(s.games_played) >= 5
+            ORDER BY RANDOM()
+            LIMIT 1
+        """)
 
-    cursor.execute("""
-        SELECT
-            p.name,
-            season.season_name,
-            SUM(s.games_played) AS games,
-            SUM(s.pts) AS points,
-            SUM(s.reb) AS rebounds,
-            SUM(s.ast) AS assists,
-            SUM(s.stl) AS steals,
-            SUM(s.blk) AS blocks
-        FROM player_season s
-        JOIN player p
-            ON p.player_id = s.player_id
-        JOIN season
-            ON s.season_id = season.season_id
-        GROUP BY
-            season.season_name,
-            p.player_id,
-            p.name
-        HAVING
-            SUM(s.games_played) >= 20
-            AND SUM(s.pts)::DECIMAL / SUM(s.games_played) >= 5
-        ORDER BY RANDOM()
-        LIMIT 1
-    """)
-
-    row = cursor.fetchone()
-    cursor.close()
+        row = cursor.fetchone()
 
     if row is None:
         return {"error": "no season stats found"}
 
-    player_name, season, games, points, rebounds, assists, steals, blocks = row
+    (
+        player_name,
+        season,
+        games,
+        points,
+        rebounds,
+        assists,
+        steals,
+        blocks
+    ) = row
 
     stats, parts = build_stat_line(
         games,
@@ -202,7 +246,9 @@ def guess_missing_stat():
     )
 
     if len(parts) < 2:
-        return {"error": "not enough available stats for this season"}
+        return {
+            "error": "not enough available stats for this season"
+        }
 
     stat_field_map = {
         "PPG": "ppg",
@@ -245,53 +291,61 @@ def guess_missing_stat():
 
 @router.get("/trivia/season_guess", response_model=SeasonGuessQuestion)
 def guess_the_season():
-    db.ensure_connected()
-    cursor = db.connection.cursor()
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                p.name,
+                season.season_name,
+                SUM(s.games_played) AS games,
+                SUM(s.pts) AS points,
+                SUM(s.reb) AS rebounds,
+                SUM(s.ast) AS assists,
+                SUM(s.stl) AS steals,
+                SUM(s.blk) AS blocks
+            FROM player_season s
+            JOIN player p
+                ON p.player_id = s.player_id
+            JOIN season
+                ON s.season_id = season.season_id
+            GROUP BY
+                season.season_name,
+                p.player_id,
+                p.name
+            HAVING
+                SUM(s.games_played) >= 20
+                AND SUM(s.pts)::DECIMAL / SUM(s.games_played) >= 5
+            ORDER BY RANDOM()
+            LIMIT 1
+        """)
 
-    cursor.execute("""
-        SELECT
-            p.name,
-            season.season_name,
-            SUM(s.games_played) AS games,
-            SUM(s.pts) AS points,
-            SUM(s.reb) AS rebounds,
-            SUM(s.ast) AS assists,
-            SUM(s.stl) AS steals,
-            SUM(s.blk) AS blocks
-        FROM player_season s
-        JOIN player p
-            ON p.player_id = s.player_id
-        JOIN season
-            ON s.season_id = season.season_id
-        GROUP BY
-            season.season_name,
-            p.player_id,
-            p.name
-        HAVING
-            SUM(s.games_played) >= 20
-            AND SUM(s.pts)::DECIMAL / SUM(s.games_played) >= 5
-        ORDER BY RANDOM()
-        LIMIT 1;
-    """)
+        stat_row = cursor.fetchone()
 
-    stat_row = cursor.fetchone()
+        if stat_row is None:
+            return {"error": "no eligible players found"}
 
-    if stat_row is None:
-        cursor.close()
-        return {"error": "no eligible players found"}
+        (
+            player_name,
+            season,
+            games,
+            points,
+            rebounds,
+            assists,
+            steals,
+            blocks
+        ) = stat_row
 
-    player_name, season, games, points, rebounds, assists, steals, blocks = stat_row
+        cursor.execute("""
+            SELECT season_name
+            FROM season
+            WHERE season_name != %s
+            ORDER BY RANDOM()
+            LIMIT 3
+        """, (season,))
 
-    cursor.execute("""
-        SELECT season_name
-        FROM season
-        WHERE season_name != %s
-        ORDER BY RANDOM()
-        LIMIT 3
-    """, (season,))
-
-    wrong_seasons = [r[0] for r in cursor.fetchall()]
-    cursor.close()
+        wrong_seasons = [
+            row[0]
+            for row in cursor.fetchall()
+        ]
 
     stats, parts = build_stat_line(
         games,
@@ -307,7 +361,10 @@ def guess_the_season():
         for value, label in parts
     )
 
-    question = f"In which season did {player_name} average {parts_text}?"
+    question = (
+        f"In which season did {player_name} "
+        f"average {parts_text}?"
+    )
 
     choices = [season] + wrong_seasons
 
