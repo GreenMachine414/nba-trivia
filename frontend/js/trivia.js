@@ -1,5 +1,6 @@
 import { getToken } from './session.js';
 import { showScreen } from './screens.js';
+import { invalidateStatsCache } from './auth.js';
 
 const API_BASE = window.location.hostname === 'localhost'
   ? 'http://127.0.0.1:8000'
@@ -601,35 +602,25 @@ function showResults() {
   recordGameResult();
 }
 
-export async function recordGameResult(
-  totalQuestions = TOTAL_QUESTIONS
-) {
+export async function recordGameResult(totalQuestions = TOTAL_QUESTIONS) {
   const token = getToken();
-
   if (!token) return;
 
   try {
-    await fetch(
-      `${API_BASE}/games/record`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type':
-            'application/json',
-          'Authorization':
-            `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          score: correctCount,
-          total_questions: totalQuestions,
-          game_mode: 'nba_trivia',
-        }),
-      }
-    );
+    await fetch(`${API_BASE}/games/record`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        score: correctCount,
+        total_questions: totalQuestions,
+        game_mode: 'nba_trivia',
+      }),
+    });
+    invalidateStatsCache();
   } catch (err) {
-    console.error(
-      'Could not record game result:',
-      err
-    );
+    console.error('Could not record game result:', err);
   }
 }

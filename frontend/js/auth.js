@@ -7,6 +7,12 @@ const API_BASE = window.location.hostname === 'localhost'
   
 const accountPanel = document.getElementById('account-panel');
 
+let cachedStats = null;
+
+export function invalidateStatsCache() {
+  cachedStats = null;
+}
+
 export function renderAccountScreen() {
   const username = getUsername();
   if (username) {
@@ -114,6 +120,18 @@ async function handleAuthSubmit(endpoint, body, errorElId) {
   }
 }
 
+function renderStatsIntoGrid(stats) {
+  const grid = document.getElementById('account-stat-grid');
+  const avgDisplay = stats.average_score !== null && stats.average_score !== undefined
+    ? stats.average_score.toFixed(1)
+    : '—';
+
+  grid.innerHTML = `
+    <div class="stat-cell"><div class="stat-value">${stats.games_played}</div><div class="stat-label">Games Played</div></div>
+    <div class="stat-cell"><div class="stat-value">${avgDisplay}</div><div class="stat-label">Avg Score</div></div>
+  `;
+}
+
 async function renderSignedIn(username) {
   accountPanel.innerHTML = `
     <h2 class="screen-heading">Account</h2>
@@ -129,8 +147,14 @@ async function renderSignedIn(username) {
 
   document.getElementById('logout-btn').addEventListener('click', async () => {
     await withLoading(() => clearSession());
+    invalidateStatsCache();
     renderAccountScreen();
   });
+
+  if (cachedStats) {
+    renderStatsIntoGrid(cachedStats);
+    return;
+  }
 
   try {
     const response = await withLoading(() =>
@@ -148,16 +172,8 @@ async function renderSignedIn(username) {
     }
 
     const stats = await response.json();
-    const grid = document.getElementById('account-stat-grid');
-
-    const avgDisplay = stats.average_score !== null && stats.average_score !== undefined
-      ? stats.average_score.toFixed(1)
-      : '—';
-
-    grid.innerHTML = `
-      <div class="stat-cell"><div class="stat-value">${stats.games_played}</div><div class="stat-label">Games Played</div></div>
-      <div class="stat-cell"><div class="stat-value">${avgDisplay}</div><div class="stat-label">Avg Score</div></div>
-    `;
+    cachedStats = stats;
+    renderStatsIntoGrid(stats);
   } catch (err) {
     console.error('Could not load stats:', err);
   }
