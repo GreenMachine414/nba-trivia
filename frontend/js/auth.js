@@ -1,4 +1,5 @@
 import { setSession, clearSession, getToken, getUsername } from './session.js';
+import { withLoading } from './loading.js';
 
 const API_BASE = window.location.hostname === 'localhost'
   ? 'http://127.0.0.1:8000'
@@ -91,11 +92,13 @@ async function handleAuthSubmit(endpoint, body, errorElId) {
   errorEl.textContent = '';
 
   try {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const response = await withLoading(() =>
+      fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    );
 
     const data = await response.json();
 
@@ -125,14 +128,16 @@ async function renderSignedIn(username) {
   `;
 
   document.getElementById('logout-btn').addEventListener('click', async () => {
-    await clearSession();
+    await withLoading(() => clearSession());
     renderAccountScreen();
   });
 
   try {
-    const response = await fetch(`${API_BASE}/users/me/stats`, {
-      headers: { 'Authorization': `Bearer ${getToken()}` },
-    });
+    const response = await withLoading(() =>
+      fetch(`${API_BASE}/users/me/stats`, {
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+      })
+    );
 
     if (!response.ok) {
       if (response.status === 401) {

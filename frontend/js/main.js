@@ -3,6 +3,7 @@ import { updateAccountLink } from './session.js';
 import { renderAccountScreen } from './auth.js';
 import { initLeaderboardTabs } from './leaderboard.js';
 import { startGame, isGameInProgress, getQuestionsAnswered, clearGameTimer, endGame, recordGameResult } from './trivia.js';
+import { withLoading } from './loading.js';
 
 initLeaderboardTabs();
 
@@ -17,15 +18,17 @@ document.getElementById('account-link').addEventListener('click', () => {
 backBtn.addEventListener('click', async (e) => {
   const target = e.currentTarget.dataset.target;
 
-  clearGameTimer();
+  await withLoading(async () => {
+    clearGameTimer();
 
-  if (screens.trivia.classList.contains('active') && isGameInProgress() && getQuestionsAnswered() > 0) {
-    await recordGameResult(getQuestionsAnswered());
-  }
+    if (screens.trivia.classList.contains('active') && isGameInProgress()) {
+      await recordGameResult(getQuestionsAnswered());
+    }
 
-  endGame();
+    endGame();
 
-  if (target) showScreen(target);
+    if (target) showScreen(target);
+  });
 });
 
 updateAccountLink();

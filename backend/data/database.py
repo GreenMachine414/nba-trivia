@@ -8,7 +8,7 @@ from psycopg2.extras import execute_values
 from dotenv import load_dotenv
 
 
-load_dotenv(Path(__file__).parent / ".env")
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 
 class Database:
@@ -45,11 +45,6 @@ class Database:
 
     @contextmanager
     def cursor(self):
-        """Yields a cursor, and always commits (on success) or rolls
-        back (on any exception) once the block exits - so no caller
-        needs to remember to close out the transaction themselves.
-        Multiple queries can share one block, and only one commit
-        happens at the end."""
         self.ensure_connected()
         cur = self.connection.cursor()
         try:
