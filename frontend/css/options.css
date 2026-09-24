@@ -1,13 +1,15 @@
 #screen-options {
   align-items: stretch;
   padding: 100px 24px 40px;
-  max-width: 980px;
-  margin: 0 auto;
   width: 100%;
   overflow-y: auto;
 }
 
 .options-layout {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+
   display: flex;
   gap: 40px;
   align-items: flex-start;
@@ -91,6 +93,28 @@
   background: var(--color-panel);
   border-radius: 8px;
   padding: 22px 20px;
+
+  height: 500px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-accent) transparent;
+}
+
+.leaderboard-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.leaderboard-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.leaderboard-panel::-webkit-scrollbar-thumb {
+  background: var(--color-accent);
+  border-radius: 3px;
+}
+
+.leaderboard-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent-dim);
 }
 
 .leaderboard-header {
