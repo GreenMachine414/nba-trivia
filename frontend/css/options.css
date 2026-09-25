@@ -1,8 +1,9 @@
 #screen-options {
   align-items: stretch;
-  padding: 100px 24px 40px;
+  padding: 100px clamp(16px, 4vw, 24px) 40px;
   width: 100%;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .options-layout {
@@ -11,18 +12,20 @@
   margin: 0 auto;
 
   display: flex;
-  gap: 40px;
+  flex-wrap: wrap;
+  gap: 28px 40px;
   align-items: flex-start;
+  flex-shrink: 0;
 }
 
 .options-main {
-  flex: 0 0 560px;
+  flex: 1 1 560px;
   min-width: 0;
 }
 
 .screen-heading {
   font-family: var(--font-display);
-  font-size: 40px;
+  font-size: clamp(32px, 6vw, 40px);
   font-weight: 600;
   letter-spacing: 0.3px;
   margin: 0 0 6px;
@@ -49,6 +52,8 @@
   color: var(--color-line);
   transition: background 0.15s ease;
 }
+
+.game-card:last-child { margin-bottom: 0; }
 
 .game-card:hover { background: var(--color-panel-raised); }
 
@@ -88,13 +93,13 @@
 .game-card.disabled .game-card-status { color: #6B6459; }
 
 .leaderboard-panel {
-  flex: 1;
-  min-width: 260px;
+  flex: 1 1 260px;
+  min-width: 0;
   background: var(--color-panel);
   border-radius: 8px;
   padding: 22px 20px;
 
-  height: 500px;
+  max-height: 500px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--color-accent) transparent;
@@ -131,6 +136,7 @@
 
 .leaderboard-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 

@@ -1,6 +1,7 @@
 import { setSession, clearSession, getToken, getUsername } from './session.js';
 import { withLoading } from './loading.js';
 
+
 const API_BASE = window.location.hostname === 'localhost'
   ? 'http://127.0.0.1:8000'
   : 'https://nba-trivia-production.up.railway.app';
@@ -40,7 +41,7 @@ function renderAuthForms() {
 
     <form class="auth-form hidden" id="signup-form">
       <p class="auth-form-title">Create an account</p>
-      <input class="auth-input" type="text" name="username" placeholder="Username" required minlength="3">
+      <input class="auth-input" type="text" name="username" placeholder="Username" required minlength="3" pattern="[a-zA-Z0-9_]+" title="Letters, numbers, and underscores only">
       <input class="auth-input" type="password" name="password" placeholder="Password (min 8 characters)" required minlength="8">
       <button class="auth-submit-btn" type="submit">Sign Up</button>
       <p class="auth-error" id="signup-error"></p>

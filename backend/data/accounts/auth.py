@@ -1,7 +1,10 @@
+import re
 import secrets
+
 import bcrypt
-from fastapi import APIRouter, Header, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import BaseModel, Field, field_validator
+
 from data.database import db
 
 router = APIRouter()
@@ -10,6 +13,18 @@ router = APIRouter()
 class SignupRequest(BaseModel):
     username: str = Field(min_length=3, max_length=50)
     password: str = Field(min_length=8, max_length=200)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value):
+        if not re.match(r'^[a-zA-Z0-9_]+$', value):
+            raise ValueError("Username can only contain letters, numbers, and underscores — no spaces or special characters")
+        return value
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
 
 class LoginRequest(BaseModel):
