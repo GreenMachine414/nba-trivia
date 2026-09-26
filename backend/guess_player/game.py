@@ -33,10 +33,7 @@ class GuessPlayerStart(BaseModel):
     reveal_order: list[str]
     round_reveal_counts: list[int]
     answer_hash: str
-
-
-class SearchResult(BaseModel):
-    names: list[str]
+    all_names: list[str]
 
 
 @router.get("/guess-player/start", response_model=GuessPlayerStart)
@@ -89,7 +86,7 @@ def start_game():
             f"{count}x {award}" if count > 1 else award
             for award, count in award_counts.items()
         ) if award_counts else "None"
-        
+
         trend_stat = random.choice(list(TREND_STAT_COLUMNS.keys()))
 
         cursor.execute(f"""
@@ -102,6 +99,13 @@ def start_game():
             ORDER BY s.start_year
         """, (player_id,))
         trend_rows = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT name FROM player
+            WHERE notice_flag = TRUE
+            ORDER BY name
+        """)
+        all_names = [r[0] for r in cursor.fetchall()]
 
     metrics = {
         "position": position,
@@ -133,21 +137,5 @@ def start_game():
         reveal_order=reveal_order,
         round_reveal_counts=ROUND_REVEAL_COUNTS,
         answer_hash=hash_answer(name),
+        all_names=all_names,
     )
-
-
-@router.get("/guess-player/search", response_model=SearchResult)
-def search_players(q: str = ""):
-    if len(q.strip()) < 2:
-        return SearchResult(names=[])
-
-    with db.cursor() as cursor:
-        cursor.execute("""
-            SELECT name FROM player
-            WHERE name ILIKE %s AND notice_flag = TRUE
-            ORDER BY name
-            LIMIT 8
-        """, (f"%{q.strip()}%",))
-        names = [r[0] for r in cursor.fetchall()]
-
-    return SearchResult(names=names)

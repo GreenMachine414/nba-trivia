@@ -37,6 +37,7 @@ const METRIC_LABELS = {
 };
 
 const TOTAL_ROUNDS = 5;
+const MAX_SUGGESTIONS = 8;
 
 const gpPanel = document.getElementById('gp-panel');
 
@@ -46,7 +47,7 @@ let trend = [];
 let revealOrder = [];
 let roundRevealCounts = [];
 let answerHash = null;
-let searchDebounce = null;
+let allNames = [];
 let chartInstance = null;
 let gameInProgress = false;
 
@@ -88,6 +89,7 @@ export async function startGuessPlayerGame() {
     revealOrder = data.reveal_order;
     roundRevealCounts = data.round_reveal_counts;
     answerHash = data.answer_hash;
+    allNames = data.all_names;
 
     renderRound();
   } catch (err) {
@@ -153,28 +155,22 @@ function renderRound() {
   const lockBtn = document.getElementById('gp-lock-btn');
 
   searchInput.addEventListener('input', () => {
-    lockBtn.disabled = searchInput.value.trim().length === 0;
-
-    clearTimeout(searchDebounce);
     const query = searchInput.value.trim();
+    lockBtn.disabled = query.length === 0;
 
     if (query.length < 2) {
       searchResults.innerHTML = '';
       return;
     }
 
-    searchDebounce = setTimeout(async () => {
-      try {
-        const response = await fetch(`${API_BASE}/guess-player/search?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
+    const lowerQuery = query.toLowerCase();
+    const matches = allNames
+      .filter(name => name.toLowerCase().includes(lowerQuery))
+      .slice(0, MAX_SUGGESTIONS);
 
-        searchResults.innerHTML = data.names.map(name => `
-          <div class="gp-search-result">${name}</div>
-        `).join('');
-      } catch (err) {
-        console.error('Search failed:', err);
-      }
-    }, 80);
+    searchResults.innerHTML = matches.map(name => `
+      <div class="gp-search-result">${name}</div>
+    `).join('');
   });
 
   lockBtn.addEventListener('click', () => submitRoundGuess(searchInput.value.trim()));
