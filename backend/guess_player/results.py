@@ -22,6 +22,11 @@ class Leaderboard(BaseModel):
     by_win_pct: list[LeaderboardEntry]
 
 
+class UserGuessPlayerStats(BaseModel):
+    games_played: int
+    win_pct: float | None
+
+
 @router.post("/guess-player/record")
 def record_result(body: GuessPlayerResult, user_id: int = Depends(get_current_user)):
     with db.cursor() as cursor:
@@ -50,4 +55,23 @@ def get_leaderboard():
 
     return Leaderboard(
         by_win_pct=[LeaderboardEntry(username=r[0], games_played=r[1], win_pct=r[2]) for r in rows]
+    )
+
+
+@router.get("/users/me/guess-player-stats", response_model=UserGuessPlayerStats)
+def get_my_guess_player_stats(user_id: int = Depends(get_current_user)):
+    with db.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT COUNT(*), AVG(CASE WHEN correct THEN 1.0 ELSE 0.0 END)
+            FROM guess_player_results
+            WHERE user_id = %s
+            """,
+            (user_id,),
+        )
+        games_played, win_rate = cursor.fetchone()
+
+    return UserGuessPlayerStats(
+        games_played=games_played,
+        win_pct=round(float(win_rate) * 100, 1) if win_rate is not None else None,
     )

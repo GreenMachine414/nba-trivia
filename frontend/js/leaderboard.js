@@ -2,74 +2,71 @@ const API_BASE = window.location.hostname === 'localhost'
   ? 'http://127.0.0.1:8000'
   : 'https://nba-trivia-production.up.railway.app';
 
-let leaderboardData = null;
-let leaderboardSort = 'games_played';
+const leaderboardList = document.getElementById('leaderboard-list');
+const leaderboardTitle = document.querySelector('.leaderboard-title');
 
-export async function loadLeaderboard() {
-  const list = document.getElementById('leaderboard-list');
-  list.innerHTML = '<p class="trivia-loading">Loading leaderboard…</p>';
-
-  try {
-    const response = await fetch(`${API_BASE}/leaderboard/nba_trivia`);
-    if (!response.ok) {
-      throw new Error(`Request failed (${response.status})`);
-    }
-    leaderboardData = await response.json();
-    renderLeaderboard();
-  } catch (err) {
-    list.innerHTML = `<p class="trivia-loading">Couldn't load leaderboard: ${err.message}</p>`;
-  }
-}
-
-// Interpolates hue from red (0) to green (120) as the score climbs
-// from 0 to 10, so the ring color itself communicates performance
-// at a glance, not just the number in the middle.
-function scoreColor(value) {
-  const clamped = Math.max(0, Math.min(10, value));
-  const hue = (clamped / 10) * 120;
-  return `hsl(${hue}, 70%, 50%)`;
-}
-
-function renderLeaderboard() {
-  const list = document.getElementById('leaderboard-list');
-  if (!leaderboardData) return;
-
-  if (leaderboardSort === 'games_played') {
-    const entries = leaderboardData.by_games_played;
-    if (entries.length === 0) {
-      list.innerHTML = '<p class="trivia-loading">No games played yet.</p>';
-      return;
-    }
-    list.innerHTML = entries.map((entry, i) => `
-      <div class="leaderboard-row">
-        <span class="leaderboard-rank">${i + 1}</span>
-        <span class="leaderboard-username">${entry.username}</span>
-        <span class="leaderboard-value">${entry.games_played}</span>
-      </div>
-    `).join('');
-  } else {
-    const entries = leaderboardData.by_average_score;
-    if (entries.length === 0) {
-      list.innerHTML = '<p class="trivia-loading">No completed games yet.</p>';
-      return;
-    }
-    list.innerHTML = entries.map((entry, i) => `
-      <div class="leaderboard-row">
-        <span class="leaderboard-rank">${i + 1}</span>
-        <span class="leaderboard-username">${entry.username}</span>
-        <span class="leaderboard-value" style="color:${scoreColor(entry.average_score)}">${entry.average_score.toFixed(1)}</span>
-      </div>
-    `).join('');
-  }
-}
+let triviaData = null;
+let guessPlayerData = null;
+let currentGameMode = 'trivia';
 
 export function initLeaderboardTabs() {
-  document.querySelectorAll('.leaderboard-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.leaderboard-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      leaderboardSort = tab.dataset.sort;
-      renderLeaderboard();
-    });
+  leaderboardTitle.textContent = 'Statline Leaderboard';
+
+  document.getElementById('tab-trivia').addEventListener('click', () => {
+    currentGameMode = 'trivia';
+    setActiveModeTab('tab-trivia');
+    renderCurrentMode();
   });
+
+  document.getElementById('tab-guess-player').addEventListener('click', () => {
+    currentGameMode = 'guess_player';
+    setActiveModeTab('tab-guess-player');
+    renderCurrentMode();
+  });
+}
+
+function setActiveModeTab(activeId) {
+  document.querySelectorAll('.leaderboard-mode-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.id === activeId);
+  });
+}
+
+export async function loadLeaderboard() {
+  leaderboardList.innerHTML = '<p class="trivia-loading">Loading leaderboard…</p>';
+
+  try {
+    const [triviaResponse, guessPlayerResponse] = await Promise.all([
+      fetch(`${API_BASE}/leaderboard/nba_trivia`),
+      fetch(`${API_BASE}/leaderboard/guess_player`),
+    ]);
+
+    triviaData = triviaResponse.ok ? await triviaResponse.json() : null;
+    guessPlayerData = guessPlayerResponse.ok ? await guessPlayerResponse.json() : null;
+
+    renderCurrentMode();
+  } catch (err) {
+    leaderboardList.innerHTML = `<p class="trivia-loading">Couldn't load leaderboard: ${err.message}</p>`;
+  }
+}
+
+function renderCurrentMode() {
+  const data = currentGameMode === 'trivia' ? triviaData : guessPlayerData;
+  const rows = currentGameMode === 'trivia'
+    ? data?.by_average_score
+    : data?.by_win_pct;
+
+  if (!rows || rows.length === 0) {
+    leaderboardList.innerHTML = '<p class="trivia-loading">No games played yet.</p>';
+    return;
+  }
+
+  leaderboardList.innerHTML = rows.map((row, i) => `
+    <div class="leaderboard-row">
+      <span class="leaderboard-rank">${i + 1}</span>
+      <span class="leaderboard-username">${row.username}</span>
+      <span class="leaderboard-value">${
+        currentGameMode === 'trivia' ? row.average_score : `${row.win_pct}%`
+      }</span>
+    </div>
+  `).join('');
 }

@@ -159,3 +159,23 @@
   opacity: 0.4;
   cursor: default;
 }
+
+@media (max-width: 700px) {
+  .gp-layout {
+    flex-direction: column;
+  }
+
+  .gp-guess-panel {
+    position: static;
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .gp-cols-6 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .gp-cols-5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
