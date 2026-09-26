@@ -136,7 +136,7 @@ function renderRound() {
       </div>
       <div class="gp-guess-panel" id="gp-guess-panel">
         <p class="gp-guess-title">Guess the player</p>
-        <input type="text" class="gp-search-input" id="gp-search-input" placeholder="Start typing a name…" autocomplete="off">
+        <input type="text" class="gp-search-input" id="gp-search-input" placeholder="Type first and last name…" autocomplete="off">
         <div class="gp-search-results" id="gp-search-results"></div>
         <button class="next-btn gp-lock-btn" id="gp-lock-btn" disabled>Lock in guess</button>
         <p class="trivia-feedback" id="gp-feedback"></p>
@@ -151,11 +151,9 @@ function renderRound() {
   const searchInput = document.getElementById('gp-search-input');
   const searchResults = document.getElementById('gp-search-results');
   const lockBtn = document.getElementById('gp-lock-btn');
-  let selectedName = null;
 
   searchInput.addEventListener('input', () => {
-    selectedName = null;
-    lockBtn.disabled = true;
+    lockBtn.disabled = searchInput.value.trim().length === 0;
 
     clearTimeout(searchDebounce);
     const query = searchInput.value.trim();
@@ -171,24 +169,15 @@ function renderRound() {
         const data = await response.json();
 
         searchResults.innerHTML = data.names.map(name => `
-          <div class="gp-search-result" data-name="${name}">${name}</div>
+          <div class="gp-search-result">${name}</div>
         `).join('');
-
-        searchResults.querySelectorAll('.gp-search-result').forEach(el => {
-          el.addEventListener('click', () => {
-            selectedName = el.dataset.name;
-            searchInput.value = selectedName;
-            searchResults.innerHTML = '';
-            lockBtn.disabled = false;
-          });
-        });
       } catch (err) {
         console.error('Search failed:', err);
       }
-    }, 200);
+    }, 80);
   });
 
-  lockBtn.addEventListener('click', () => submitRoundGuess(selectedName));
+  lockBtn.addEventListener('click', () => submitRoundGuess(searchInput.value.trim()));
 }
 
 function renderTrendChart() {

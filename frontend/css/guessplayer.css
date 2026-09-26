@@ -144,11 +144,7 @@
   padding: 8px 10px;
   font-size: 14px;
   border-radius: 6px;
-  cursor: pointer;
-}
-
-.gp-search-result:hover {
-  background: var(--color-panel-raised);
+  color: var(--color-muted);
 }
 
 .gp-lock-btn {
@@ -163,12 +159,28 @@
 @media (max-width: 700px) {
   .gp-layout {
     flex-direction: column;
+    align-items: center;
+  }
+
+  .gp-main {
+    width: 100%;
+    max-width: 500px;
+  }
+
+  .gp-section,
+  .gp-round-row {
+    text-align: center;
+  }
+
+  .gp-chart-wrap {
+    width: 100%;
   }
 
   .gp-guess-panel {
     position: static;
     flex: 1 1 auto;
     width: 100%;
+    max-width: 500px;
   }
 
   .gp-cols-6 {
