@@ -100,7 +100,21 @@
   margin: 0 0 26px;
 }
 
+.account-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  margin: 0 0 8px;
+}
+
 #account-stat-grid {
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 20px;
+}
+
+#account-gp-stat-grid {
   grid-template-columns: 1fr 1fr;
   margin-bottom: 28px;
 }

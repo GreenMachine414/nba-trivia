@@ -133,14 +133,33 @@ function renderStatsIntoGrid(stats) {
   `;
 }
 
+function renderGuessPlayerStatsIntoGrid(stats) {
+  const grid = document.getElementById('account-gp-stat-grid');
+  const winDisplay = stats.win_pct !== null && stats.win_pct !== undefined
+    ? `${stats.win_pct}%`
+    : '—';
+
+  grid.innerHTML = `
+    <div class="stat-cell"><div class="stat-value">${stats.games_played}</div><div class="stat-label">Games Played</div></div>
+    <div class="stat-cell"><div class="stat-value">${winDisplay}</div><div class="stat-label">% Correct</div></div>
+  `;
+}
+
 async function renderSignedIn(username) {
   accountPanel.innerHTML = `
     <h2 class="screen-heading">Account</h2>
     <p class="account-username">Signed in as ${username}</p>
 
+    <p class="account-section-label">NBA Trivia</p>
     <div class="stat-grid" id="account-stat-grid">
       <div class="stat-cell"><div class="stat-value">—</div><div class="stat-label">Games Played</div></div>
       <div class="stat-cell"><div class="stat-value">—</div><div class="stat-label">Avg Score</div></div>
+    </div>
+
+    <p class="account-section-label">Guess The Player</p>
+    <div class="stat-grid" id="account-gp-stat-grid">
+      <div class="stat-cell"><div class="stat-value">—</div><div class="stat-label">Games Played</div></div>
+      <div class="stat-cell"><div class="stat-value">—</div><div class="stat-label">% Correct</div></div>
     </div>
 
     <button class="auth-submit-btn" id="logout-btn">Log Out</button>
@@ -153,28 +172,33 @@ async function renderSignedIn(username) {
   });
 
   if (cachedStats) {
-    renderStatsIntoGrid(cachedStats);
+    renderStatsIntoGrid(cachedStats.trivia);
+    renderGuessPlayerStatsIntoGrid(cachedStats.guessPlayer);
     return;
   }
 
   try {
-    const response = await withLoading(() =>
-      fetch(`${API_BASE}/users/me/stats`, {
-        headers: { 'Authorization': `Bearer ${getToken()}` },
-      })
+    const [triviaResponse, gpResponse] = await withLoading(() =>
+      Promise.all([
+        fetch(`${API_BASE}/users/me/stats`, { headers: { 'Authorization': `Bearer ${getToken()}` } }),
+        fetch(`${API_BASE}/users/me/guess-player-stats`, { headers: { 'Authorization': `Bearer ${getToken()}` } }),
+      ])
     );
 
-    if (!response.ok) {
-      if (response.status === 401) {
+    if (!triviaResponse.ok || !gpResponse.ok) {
+      if (triviaResponse.status === 401 || gpResponse.status === 401) {
         await clearSession();
         renderAccountScreen();
       }
       return;
     }
 
-    const stats = await response.json();
-    cachedStats = stats;
-    renderStatsIntoGrid(stats);
+    const triviaStats = await triviaResponse.json();
+    const gpStats = await gpResponse.json();
+
+    cachedStats = { trivia: triviaStats, guessPlayer: gpStats };
+    renderStatsIntoGrid(triviaStats);
+    renderGuessPlayerStatsIntoGrid(gpStats);
   } catch (err) {
     console.error('Could not load stats:', err);
   }

@@ -1,5 +1,6 @@
 import { getToken } from './session.js';
 import { showScreen } from './screens.js';
+import { invalidateStatsCache } from './auth.js';
 
 const API_BASE = window.location.hostname === 'localhost'
   ? 'http://127.0.0.1:8000'
@@ -292,6 +293,7 @@ export async function recordGuessPlayerResult(correct, roundsUsed) {
       },
       body: JSON.stringify({ correct, rounds_used: roundsUsed }),
     });
+    invalidateStatsCache();
   } catch (err) {
     console.error('Could not record guess-player result:', err);
   }
