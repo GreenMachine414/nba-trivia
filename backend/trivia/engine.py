@@ -11,11 +11,11 @@ def hash_answer(answer: str) -> str:
 def build_question_base(player_name: str) -> tuple[str, list[str]]:
     with db.cursor() as cursor:
         cursor.execute("""
-            SELECT player_name
+            SELECT name
             FROM (
-                SELECT DISTINCT player_name
-                FROM players
-                WHERE player_name != %s
+                SELECT DISTINCT name
+                FROM player
+                WHERE name != %s
             ) AS distinct_names
             ORDER BY RANDOM()
             LIMIT 3

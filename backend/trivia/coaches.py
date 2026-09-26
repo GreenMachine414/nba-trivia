@@ -42,19 +42,18 @@ def guess_coaching_staff():
                 tc.season_id,
                 s.season_name,
                 f.abbreviation
-            FROM team_coach tc
+            FROM (
+                SELECT season_id, team_id
+                FROM team_coach
+                GROUP BY season_id, team_id
+                HAVING COUNT(*) >= 2
+                ORDER BY RANDOM()
+                LIMIT 1
+            ) tc
             JOIN season s
                 ON s.season_id = tc.season_id
             JOIN franchise f
-                ON f.team_id = tc.team_id
-            GROUP BY
-                tc.team_id,
-                tc.season_id,
-                s.season_name,
-                f.abbreviation
-            HAVING COUNT(*) >= 2
-            ORDER BY RANDOM()
-            LIMIT 1
+                ON f.team_id = tc.team_id;
         """)
 
         row = cursor.fetchone()

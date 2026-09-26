@@ -1,6 +1,5 @@
 DROP TABLE IF EXISTS trivia_game_results;
 DROP TABLE IF EXISTS sessions;
-DROP TABLE IF EXISTS pending_answers;
 DROP TABLE IF EXISTS users;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -23,3 +22,9 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_id INTEGER NOT NULL REFERENCES users(id),
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX idx_sessions_created_at ON sessions (created_at);
+
+CREATE INDEX idx_game_results_user
+    ON trivia_game_results (user_id)
+    INCLUDE (score);

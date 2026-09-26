@@ -102,6 +102,7 @@ def guess_season_average():
                 ON p.player_id = s.player_id
             JOIN season
                 ON s.season_id = season.season_id
+            WHERE p.notice_flag = TRUE
             GROUP BY
                 season.season_name,
                 p.player_id,
@@ -178,6 +179,7 @@ def guess_the_season():
                 ON p.player_id = s.player_id
             JOIN season
                 ON s.season_id = season.season_id
+            WHERE p.notice_flag = TRUE
             GROUP BY
                 season.season_name,
                 p.player_id,
