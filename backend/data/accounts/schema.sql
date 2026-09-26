@@ -23,6 +23,14 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS guess_player_results (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    correct BOOLEAN NOT NULL,
+    rounds_used INTEGER NOT NULL,
+    played_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX idx_sessions_created_at ON sessions (created_at);
 
 CREATE INDEX idx_game_results_user

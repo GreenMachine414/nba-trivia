@@ -28,5 +28,25 @@ def build_question_base(player_name: str) -> tuple[str, list[str]]:
     return question_id, choices
 
 
+def build_coach_question_base(coach_name: str) -> tuple[str, list[str]]:
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT full_name
+            FROM (
+                SELECT DISTINCT full_name
+                FROM coach
+                WHERE full_name != %s
+            ) AS distinct_names
+            ORDER BY RANDOM()
+            LIMIT 3
+        """, (coach_name,))
+        wrong_answers = [r[0] for r in cursor.fetchall()]
+
+    choices = [coach_name] + wrong_answers
+    question_id = str(uuid.uuid4())
+
+    return question_id, choices
+
+
 def register_answer(answer: str) -> str:
     return str(uuid.uuid4())

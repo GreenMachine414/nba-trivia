@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from data.database import db
 import data.accounts.auth as auth
 import trivia
+import guess_player
 
 
 @asynccontextmanager
@@ -41,3 +42,4 @@ app.add_middleware(
 
 app.include_router(trivia.router)
 app.include_router(auth.router)
+app.include_router(guess_player.router)

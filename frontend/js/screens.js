@@ -5,6 +5,7 @@ export const screens = {
   options: document.getElementById('screen-options'),
   trivia: document.getElementById('screen-trivia'),
   account: document.getElementById('screen-account'),
+  'guess-player': document.getElementById('screen-guess-player'),
 };
 
 const topbar = document.getElementById('topbar');
@@ -14,6 +15,7 @@ const backTargets = {
   options: 'home',
   trivia: 'options',
   account: 'home',
+  'guess-player': 'options',
 };
 
 export function showScreen(name) {
