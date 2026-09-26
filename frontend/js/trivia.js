@@ -18,7 +18,6 @@ const questionTypeColors = {
 const questionEndpoints = [
   '/trivia/season_average',
   '/trivia/career_path',
-  '/trivia/missing_stat',
   '/trivia/season_guess',
   '/trivia/missing_stop',
   '/trivia/team_count',
@@ -27,7 +26,6 @@ const questionEndpoints = [
   '/trivia/draft_organization',
   '/trivia/jersey_player',
   '/trivia/jersey_number',
-  '/trivia/career_jerseys',
   '/trivia/coaching_staff',
   '/trivia/head_coach',
   '/trivia/award_winner',

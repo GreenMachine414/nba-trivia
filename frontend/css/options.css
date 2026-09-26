@@ -98,28 +98,6 @@
   background: var(--color-panel);
   border-radius: 8px;
   padding: 22px 20px;
-
-  max-height: 500px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-accent) transparent;
-}
-
-.leaderboard-panel::-webkit-scrollbar {
-  width: 6px;
-}
-
-.leaderboard-panel::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.leaderboard-panel::-webkit-scrollbar-thumb {
-  background: var(--color-accent);
-  border-radius: 3px;
-}
-
-.leaderboard-panel::-webkit-scrollbar-thumb:hover {
-  background: var(--color-accent-dim);
 }
 
 .leaderboard-header {
@@ -169,7 +147,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 0;
+  padding: 6px 0;
   border-bottom: 1px solid rgba(244, 241, 234, 0.06);
 }
 
